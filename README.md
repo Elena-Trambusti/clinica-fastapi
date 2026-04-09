@@ -1,4 +1,4 @@
-# 🏥 Gestionale Clinica Pro
+# 🏥 Gestionale Clinica
 
 Questo è un software gestionale completo per una clinica medica, progettato per gestire medici e turni in modo sicuro e professionale.
 
