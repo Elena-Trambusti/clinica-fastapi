@@ -1,3 +1,4 @@
+from fastapi.responses import FileResponse
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -94,8 +95,6 @@ def crea_turno(turno: schemas.TurnoCreate, db: Session = Depends(get_db), curren
     db.commit()
     db.refresh(nuovo_turno)
     return nuovo_turno
-
-from fastapi.responses import FileResponse
 
 @app.get("/")
 async def read_index():
