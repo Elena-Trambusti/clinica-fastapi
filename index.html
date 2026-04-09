@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestionale Clinica Pro - Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-5" style="background-color: #e0f7fa;">
+
+    <div class="container">
+        <div id="sezione-login" class="mx-auto bg-white p-4 rounded shadow" style="max-width: 400px;">
+            <h2 class="text-center text-primary mb-4">🔐 Accesso Clinica</h2>
+            <form onsubmit="faiLogin(event)">
+                <input type="text" id="user" class="form-control mb-2" placeholder="Username" required>
+                <input type="password" id="pass" class="form-control mb-3" placeholder="Password" required>
+                <button type="submit" class="btn btn-primary w-100">Entra nel Sistema</button>
+            </form>
+        </div>
+
+        <div id="sezione-app" class="bg-white p-4 rounded shadow" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="text-primary">🏥 Gestionale Clinica Aziendale</h1>
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">Esci (Logout)</button>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h3 class="text-secondary">👨‍⚕️ Gestione Medici</h3>
+                    <div class="card mb-3 p-3 bg-light">
+                        <form onsubmit="aggiungiMedico(event)">
+                            <input type="text" id="nome-medico" class="form-control mb-2" placeholder="Nome" required>
+                            <input type="text" id="cognome-medico" class="form-control mb-2" placeholder="Cognome" required>
+                            <input type="text" id="spec-medico" class="form-control mb-2" placeholder="Specializzazione" required>
+                            <button type="submit" class="btn btn-primary w-100">Aggiungi Medico</button>
+                        </form>
+                    </div>
+                    <table class="table table-bordered table-striped"><tbody id="tabella-medici"></tbody></table>
+                </div>
+
+                <div class="col-md-6">
+                    <h3 class="text-secondary">📅 Gestione Turni</h3>
+                    <div class="card mb-3 p-3 bg-light">
+                        <form onsubmit="aggiungiTurno(event)">
+                            <input type="time" id="orario-turno" class="form-control mb-2" required>
+                            <input type="text" id="stanza-turno" class="form-control mb-2" placeholder="Stanza" required>
+                            <select id="id-medico-turno" class="form-select mb-2" required></select>
+                            <button type="submit" class="btn btn-success w-100">Assegna Turno</button>
+                        </form>
+                    </div>
+                    <table class="table table-bordered table-striped"><tbody id="tabella-turni"></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token'); // Recupera il pass digitale salvato
+
+        // Funzione per mostrare l'App o il Login
+        function aggiornaInterfaccia() {
+            if (token) {
+                document.getElementById('sezione-login').style.display = 'none';
+                document.getElementById('sezione-app').style.display = 'block';
+                caricaDati();
+            } else {
+                document.getElementById('sezione-login').style.display = 'block';
+                document.getElementById('sezione-app').style.display = 'none';
+            }
+        }
+
+        // --- LOGIN ---
+        async function faiLogin(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('user').value);
+            formData.append('password', document.getElementById('pass').value);
+
+            const res = await fetch('http://127.0.0.1:8000/login', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                token = data.access_token;
+                localStorage.setItem('token', token); // Salva il token nel browser
+                aggiornaInterfaccia();
+            } else {
+                alert("Accesso negato! Credenziali errate.");
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            location.reload();
+        }
+
+        // --- CARICAMENTO DATI (Con il Token!) ---
+        async function caricaDati() {
+            const headers = { 'Authorization': `Bearer ${token}` };
+            
+            // Carica Medici
+            const resM = await fetch('http://127.0.0.1:8000/medici/', { headers });
+            const medici = await resM.json();
+            const tbodyM = document.getElementById('tabella-medici');
+            const select = document.getElementById('id-medico-turno');
+            tbodyM.innerHTML = ''; select.innerHTML = '<option value="" disabled selected>Seleziona Medico...</option>';
+            
+            medici.forEach(m => {
+                tbodyM.innerHTML += `<tr><td>${m.id}</td><td>${m.nome} ${m.cognome}</td></tr>`;
+                select.innerHTML += `<option value="${m.id}">Dott. ${m.nome} ${m.cognome}</option>`;
+            });
+
+            // Carica Turni
+            const resT = await fetch('http://127.0.0.1:8000/turni/', { headers });
+            const turni = await resT.json();
+            const tbodyT = document.getElementById('tabella-turni');
+            tbodyT.innerHTML = '';
+            turni.forEach(t => {
+                tbodyT.innerHTML += `<tr><td>${t.orario}</td><td>${t.stanza}</td><td>ID Medico: ${t.medico_id}</td></tr>`;
+            });
+        }
+
+        // Altre funzioni di aggiunta... (omesse per brevità, ma simili a prima aggiungendo headers)
+
+        aggiornaInterfaccia();
+    </script>
+</body>
+</html>
