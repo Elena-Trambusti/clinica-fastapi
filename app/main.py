@@ -94,3 +94,9 @@ def crea_turno(turno: schemas.TurnoCreate, db: Session = Depends(get_db), curren
     db.commit()
     db.refresh(nuovo_turno)
     return nuovo_turno
+
+from fastapi.responses import FileResponse
+
+@app.get("/")
+async def read_index():
+    return FileResponse('index.html')
