@@ -1,4 +1,5 @@
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -13,6 +14,8 @@ from .database import SessionLocal, engine
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Gestionale Clinica Pro")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Permessi per far parlare il frontend con il backend
 app.add_middleware(
