@@ -38,3 +38,13 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String) # Qui salviamo la versione criptata!
+
+class Paziente(Base):
+    __tablename__ = "pazienti"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String)
+    cognome = Column(String)
+    codice_fiscale = Column(String, unique=True, index=True)
+    email = Column(String)
+    telefono = Column(String)

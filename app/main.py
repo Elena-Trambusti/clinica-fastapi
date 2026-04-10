@@ -96,6 +96,18 @@ def crea_turno(turno: schemas.TurnoCreate, db: Session = Depends(get_db), curren
     db.refresh(nuovo_turno)
     return nuovo_turno
 
+@app.post("/pazienti", response_model=schemas.Paziente)
+def crea_paziente(paziente: schemas.PazienteCreate, db: Session = Depends(get_db)):
+    db_paziente = models.Paziente(**paziente.dict())
+    db.add(db_paziente)
+    db.commit()
+    db.refresh(db_paziente)
+    return db_paziente
+
+@app.get("/pazienti", response_model=list[schemas.Paziente])
+def leggi_pazienti(db: Session = Depends(get_db)):
+    return db.query(models.Paziente).all()
+
 @app.get("/")
 async def read_index():
     return FileResponse('index.html')

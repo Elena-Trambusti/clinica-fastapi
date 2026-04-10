@@ -43,3 +43,19 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class PazienteBase(BaseModel):
+    nome: str
+    cognome: str
+    codice_fiscale: str
+    email: str
+    telefono: str
+
+class PazienteCreate(PazienteBase):
+    pass
+
+class Paziente(PazienteBase):
+    id: int
+
+    class Config:
+        from_attributes = True

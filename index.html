@@ -53,6 +53,40 @@
         </div>
     </div>
 
+    <div class="bg-white p-4 rounded shadow mt-4">
+    <h3>👤 Gestione Pazienti</h3>
+    <form onsubmit="aggiungiPaziente(event)">
+        <input type="text" id="nome-paziente" class="form-control mb-2" placeholder="Nome" required>
+        <input type="text" id="cognome-paziente" class="form-control mb-2" placeholder="Cognome" required>
+        <input type="text" id="cf-paziente" class="form-control mb-2" placeholder="Codice Fiscale" required>
+        <input type="email" id="emai<div class="bg-white p-4 rounded shadow mt-4">
+    <h3>👤 Gestione Pazienti</h3>
+    <form onsubmit="aggiungiPaziente(event)">
+        <input type="text" id="nome-paziente" class="form-control mb-2" placeholder="Nome" required>
+        <input type="text" id="cognome-paziente" class="form-control mb-2" placeholder="Cognome" required>
+        <input type="text" id="cf-paziente" class="form-control mb-2" placeholder="Codice Fiscale" required>
+        <input type="email" id="email-paziente" class="form-control mb-2" placeholder="Email" required>
+        <input type="text" id="tel-paziente" class="form-control mb-2" placeholder="Telefono" required>
+        <button type="submit" class="btn btn-primary w-100">Registra Paziente</button>
+    </form>
+    <table class="table mt-3">
+        <thead>
+            <tr><th>Nome</th><th>Cognome</th><th>Codice Fiscale</th></tr>
+        </thead>
+        <tbody id="tabella-pazienti"></tbody>
+    </table>
+</div>-paziente" class="form-control mb-2" placeholder="Email" required>
+        <input type="text" id="tel-paziente" class="form-control mb-2" placeholder="Telefono" required>
+        <button type="submit" class="btn btn-primary w-100">Registra Paziente</button>
+    </form>
+    <table class="table mt-3">
+        <thead>
+            <tr><th>Nome</th><th>Cognome</th><th>Codice Fiscale</th></tr>
+        </thead>
+        <tbody id="tabella-pazienti"></tbody>
+    </table>
+</div>
+
     <script>
         let token = localStorage.getItem('token'); // Recupera il pass digitale salvato
 
@@ -124,6 +158,36 @@
         // Altre funzioni di aggiunta... (omesse per brevità, ma simili a prima aggiungendo headers)
 
         aggiornaInterfaccia();
+        caricaPazienti();
+
+async function caricaPazienti() {
+    const res = await fetch('/pazienti');
+    const pazienti = await res.json();
+    const tbody = document.getElementById('tabella-pazienti');
+    tbody.innerHTML = '';
+    pazienti.forEach(p => {
+        tbody.innerHTML += `<tr><td>${p.nome}</td><td>${p.cognome}</td><td>${p.codice_fiscale}</td></tr>`;
+    });
+}
+
+async function aggiungiPaziente(e) {
+    e.preventDefault();
+    const dati = {
+        nome: document.getElementById('nome-paziente').value,
+        cognome: document.getElementById('cognome-paziente').value,
+        codice_fiscale: document.getElementById('cf-paziente').value,
+        email: document.getElementById('email-paziente').value,
+        telefono: document.getElementById('tel-paziente').value
+    };
+    await fetch('/pazienti', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(dati)
+    });
+    caricaPazienti();
+    e.target.reset();
+}
+
     </script>
 </body>
 </html>
