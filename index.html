@@ -75,7 +75,7 @@
             formData.append('username', document.getElementById('user').value);
             formData.append('password', document.getElementById('pass').value);
 
-            const res = await fetch('http://127.0.0.1:8000/login', {
+            const res = await fetch('/login', {
                 method: 'POST',
                 body: formData
             });
@@ -100,7 +100,7 @@
             const headers = { 'Authorization': `Bearer ${token}` };
             
             // Carica Medici
-            const resM = await fetch('http://127.0.0.1:8000/medici/', { headers });
+            const resM = await fetch('/medici/', { headers });
             const medici = await resM.json();
             const tbodyM = document.getElementById('tabella-medici');
             const select = document.getElementById('id-medico-turno');
@@ -112,7 +112,7 @@
             });
 
             // Carica Turni
-            const resT = await fetch('http://127.0.0.1:8000/turni/', { headers });
+            const resT = await fetch('/turni/', { headers });
             const turni = await resT.json();
             const tbodyT = document.getElementById('tabella-turni');
             tbodyT.innerHTML = '';
