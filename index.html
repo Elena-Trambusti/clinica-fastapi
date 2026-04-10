@@ -44,6 +44,7 @@
                             <input type="time" id="orario-turno" class="form-control mb-2" required>
                             <input type="text" id="stanza-turno" class="form-control mb-2" placeholder="Stanza" required>
                             <select id="id-medico-turno" class="form-select mb-2" required></select>
+                            <select id="id-paziente-turno" class="form-select mb-2" required></select>
                             <button type="submit" class="btn btn-success w-100">Assegna Turno</button>
                         </form>
                     </div>
@@ -52,7 +53,7 @@
             </div>
 
 <div class="bg-white p-4 rounded shadow mt-4">
-    
+
     <h3>👤 Gestione Pazienti</h3>
     <form onsubmit="aggiungiPaziente(event)">
         <input type="text" id="nome-paziente" class="form-control mb-2" placeholder="Nome" required>
@@ -137,7 +138,7 @@
             const tbodyT = document.getElementById('tabella-turni');
             tbodyT.innerHTML = '';
             turni.forEach(t => {
-                tbodyT.innerHTML += `<tr><td>${t.orario}</td><td>${t.stanza}</td><td>ID Medico: ${t.medico_id}</td></tr>`;
+                tbodyT.innerHTML += `<tr><td>${t.orario}</td><td>${t.stanza}</td><td>ID Medico: ${t.medico_id}</td><td>ID Paziente: ${t.paziente_id}</td></tr>`;
             });
         }
 
@@ -149,11 +150,44 @@
 async function caricaPazienti() {
     const res = await fetch('/pazienti');
     const pazienti = await res.json();
+    
     const tbody = document.getElementById('tabella-pazienti');
+    const selectPaz = document.getElementById('id-paziente-turno'); // Trova la tendina
+    
     tbody.innerHTML = '';
+    if(selectPaz) selectPaz.innerHTML = '<option value="" disabled selected>Seleziona Paziente...</option>';
+    
     pazienti.forEach(p => {
+        // Disegna la riga in tabella
         tbody.innerHTML += `<tr><td>${p.nome}</td><td>${p.cognome}</td><td>${p.codice_fiscale}</td></tr>`;
+        // Aggiunge il nome alla tendina
+        if(selectPaz) selectPaz.innerHTML += `<option value="${p.id}">${p.nome} ${p.cognome}</option>`;
     });
+}
+
+async function aggiungiTurno(e) {
+    e.preventDefault();
+    const dati = {
+        orario: document.getElementById('orario-turno').value,
+        stanza: document.getElementById('stanza-turno').value,
+        medico_id: document.getElementById('id-medico-turno').value,
+        paziente_id: document.getElementById('id-paziente-turno').value
+    };
+    
+    // Recupera il pass per poter scrivere nel database
+    const token = localStorage.getItem('token'); 
+    
+    await fetch('/turni/', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(dati)
+    });
+    
+    caricaDati(); // Ricarica la tabella dei turni in tempo reale
+    e.target.reset(); // Svuota le caselle del modulo
 }
 
 async function aggiungiPaziente(e) {

@@ -31,6 +31,10 @@ class Turno(Base):
     # Relazione speculare: permette a Python di estrarre facilmente i dati del medico partendo dal turno
     medico_assegnato = relationship("Medico", back_populates="turni")
 
+# Il ponte verso il paziente
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"))
+    paziente_assegnato = relationship("Paziente", back_populates="turni")
+
     # --- NUOVA TABELLA: UTENTI (PER IL LOGIN) ---
 class User(Base):
     __tablename__ = "users"
@@ -48,3 +52,5 @@ class Paziente(Base):
     codice_fiscale = Column(String, unique=True, index=True)
     email = Column(String)
     telefono = Column(String)
+
+    turni = relationship("Turno", back_populates="paziente_assegnato")
