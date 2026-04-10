@@ -114,3 +114,25 @@ def leggi_pazienti(db: Session = Depends(get_db)):
 @app.get("/")
 async def read_index():
     return FileResponse('index.html')
+
+# --- ROTTE PER CANCELLARE (DELETE) ---
+
+# Cancella un Medico (Richiede Login)
+@app.delete("/medici/{medico_id}")
+def elimina_medico(medico_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    medico = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
+    if not medico:
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+    db.delete(medico)
+    db.commit()
+    return {"message": "Medico eliminato"}
+
+# Cancella un Paziente
+@app.delete("/pazienti/{paziente_id}")
+def elimina_paziente(paziente_id: int, db: Session = Depends(get_db)):
+    paziente = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paziente:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    db.delete(paziente)
+    db.commit()
+    return {"message": "Paziente eliminato"}

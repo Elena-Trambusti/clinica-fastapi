@@ -41,7 +41,15 @@
                             <button type="submit" class="btn btn-primary w-100">Aggiungi Medico</button>
                         </form>
                     </div>
-                    <table class="table table-bordered table-striped"><tbody id="tabella-medici"></tbody></table>
+                    <table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nominativo</th>
+            <th>Azioni</th> </tr>
+    </thead>
+    <tbody id="tabella-medici"></tbody>
+</table>
                 </div>
 
                 <div class="col-md-6">
@@ -55,7 +63,18 @@
                             <button type="submit" class="btn btn-success w-100">Assegna Turno</button>
                         </form>
                     </div>
-                    <table class="table table-bordered table-striped"><tbody id="tabella-turni"></tbody></table>
+                    <table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Orario</th>
+            <th>Stanza</th>
+            <th>Medico</th>
+            <th>Paziente</th>
+            <th>Azioni</th>
+        </tr>
+    </thead>
+    <tbody id="tabella-turni"></tbody>
+</table>
                 </div>
             </div>
 
@@ -70,9 +89,17 @@
         <input type="text" id="tel-paziente" class="form-control mb-2" placeholder="Telefono" required>
         <button type="submit" class="btn btn-primary w-100">Registra Paziente</button>
     </form>
-    <table class="table mt-3">
-        <thead>
-            <tr><th>Nome</th><th>Cognome</th><th>Codice Fiscale</th></tr>
+    <table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Cognome</th>
+            <th>Codice Fiscale</th>
+            <th>Azioni</th>
+        </tr>
+    </thead>
+    <tbody id="tabella-pazienti"></tbody>
+</table>
         </thead>
         <tbody id="tabella-pazienti"></tbody>
     </table>
@@ -82,7 +109,36 @@
     </div>
 
     <script>
+        function mostraNotifica(messaggio, successo = true) {
+    const toastElement = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toast-body');
+    
+    toastElement.classList.remove('bg-success', 'bg-danger');
+    toastElement.classList.add(successo ? 'bg-success' : 'bg-danger');
+    
+    toastBody.innerText = messaggio;
+    
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+}
         let token = localStorage.getItem('token'); // Recupera il pass digitale salvato
+
+async function eliminaRecord(tipo, id) {
+    if (!confirm("Sei sicura di voler eliminare questo record?")) return;
+
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/${tipo}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (res.ok) {
+        mostraNotifica("Eliminato con successo! 🗑️");
+        caricaDati(); // Questo ricarica le tabelle aggiornate
+    } else {
+        mostraNotifica("Errore durante l'eliminazione ❌", false);
+    }
+}
 
         // Funzione per mostrare l'App o il Login
         function aggiornaInterfaccia() {
@@ -114,7 +170,7 @@
                 localStorage.setItem('token', token); // Salva il token nel browser
                 aggiornaInterfaccia();
             } else {
-                alert("Accesso negato! Credenziali errate.");
+                mostraNotifica("Accesso negato! Credenziali errate.", false);
             }
         }
 
@@ -122,6 +178,33 @@
             localStorage.removeItem('token');
             location.reload();
         }
+        async function aggiungiMedico(event) {
+    event.preventDefault();
+    const dati = {
+        nome: document.getElementById('nome-medico').value,
+        cognome: document.getElementById('cognome-medico').value,
+        specializzazione: document.getElementById('spec-medico').value
+    };
+
+    const token = localStorage.getItem('token'); // Recupera il permesso per scrivere
+
+    const res = await fetch('/medici/', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(dati)
+    });
+
+    if (res.ok) {
+        mostraNotifica("Medico registrato con successo! 🩺");
+        caricaDati(); // Ricarica la tabella dei medici
+        event.target.reset(); // Svuota i campi del modulo
+    } else {
+        mostraNotifica("Errore nella registrazione del medico ❌", false);
+    }
+}
 
         // --- CARICAMENTO DATI (Con il Token!) ---
         async function caricaDati() {
@@ -135,7 +218,16 @@
             tbodyM.innerHTML = ''; select.innerHTML = '<option value="" disabled selected>Seleziona Medico...</option>';
             
             medici.forEach(m => {
-                tbodyM.innerHTML += `<tr><td>${m.id}</td><td>${m.nome} ${m.cognome}</td></tr>`;
+               // Sostituisci la riga 194 con questa:
+tbodyM.innerHTML += `<tr>
+    <td>${m.id}</td>
+    <td>${m.nome} ${m.cognome}</td>
+    <td>
+        <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('medici', ${m.id})">
+            🗑️
+        </button>
+    </td>
+</tr>`;
                 select.innerHTML += `<option value="${m.id}">Dott. ${m.nome} ${m.cognome}</option>`;
             });
 
@@ -166,7 +258,16 @@ async function caricaPazienti() {
     
     pazienti.forEach(p => {
         // Disegna la riga in tabella
-        tbody.innerHTML += `<tr><td>${p.nome}</td><td>${p.cognome}</td><td>${p.codice_fiscale}</td></tr>`;
+        // Cerca il punto simile per i pazienti e usa questo:
+tbody.innerHTML += `<tr>
+    <td>${p.nome} ${p.cognome}</td>
+    <td>${p.codice_fiscale}</td>
+    <td>
+        <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('pazienti', ${p.id})">
+            🗑️
+        </button>
+    </td>
+</tr>`;
         // Aggiunge il nome alla tendina
         if(selectPaz) selectPaz.innerHTML += `<option value="${p.id}">${p.nome} ${p.cognome}</option>`;
     });
@@ -184,17 +285,25 @@ async function aggiungiTurno(e) {
     // Recupera il pass per poter scrivere nel database
     const token = localStorage.getItem('token'); 
     
-    await fetch('/turni/', {
+    // 1. Salviamo la risposta in una variabile 'res'
+    const res = await fetch('/turni/', {
         method: 'POST',
-        headers: { 
+        headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(dati)
     });
-    
-    caricaDati(); // Ricarica la tabella dei turni in tempo reale
-    e.target.reset(); // Svuota le caselle del modulo
+
+    // 2. Controlliamo se è andata bene
+    if (res.ok) {
+        mostraNotifica("Turno assegnato con successo! 📅");
+        caricaDati(); // Aggiorna le tabelle
+        e.target.reset(); // Svuota il modulo
+    } else {
+        // Se c'è un errore (es. stanza occupata o dati mancanti)
+        mostraNotifica("Errore nell'assegnazione del turno ❌", false);
+    }
 }
 
 async function aggiungiPaziente(e) {
@@ -206,15 +315,29 @@ async function aggiungiPaziente(e) {
         email: document.getElementById('email-paziente').value,
         telefono: document.getElementById('tel-paziente').value
     };
-    await fetch('/pazienti', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(dati)
-    });
+    const res = await fetch('/pazienti', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dati)
+});
+
+if (res.ok) {
+    mostraNotifica("Paziente registrato con successo! ✅");
     caricaPazienti();
     e.target.reset();
+} else {
+    mostraNotifica("Errore nella registrazione del paziente ❌", false);
 }
-
+}
     </script>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div id="toast-body" class="toast-body">
+        </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
