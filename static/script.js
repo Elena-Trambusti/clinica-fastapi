@@ -148,14 +148,14 @@ async function caricaPazienti() {
         // Disegna la riga in tabella
         // Cerca il punto simile per i pazienti e usa questo:
 tbody.innerHTML += `<tr>
-    <td>${p.nome} ${p.cognome}</td>
-    <td>${p.codice_fiscale}</td>
-    <td>
-        <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('pazienti', ${p.id})">
-            🗑️
-        </button>
-    </td>
-</tr>`;
+            <td>${p.nome} ${p.cognome}</td>
+            <td>${p.codice_fiscale}</td>
+            <td>
+                <button class="btn btn-outline-warning btn-sm me-1" onclick="preparaModifica(${p.id}, '${p.nome}', '${p.cognome}', '${p.codice_fiscale}', '${p.email}', '${p.telefono}')">✏️</button>
+                
+                <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('pazienti', ${p.id})">🗑️</button>
+            </td>
+        </tr>`;
         // Aggiunge il nome alla tendina
         if(selectPaz) selectPaz.innerHTML += `<option value="${p.id}">${p.nome} ${p.cognome}</option>`;
     });
@@ -263,3 +263,41 @@ function filtraMedici() {
         }
     }
 }
+// 1. Funzione per aprire il modal e riempire i campi
+async function preparaModifica(id, nome, cognome, cf, email, tel) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-nome').value = nome;
+    document.getElementById('edit-cognome').value = cognome;
+    document.getElementById('edit-cf').value = cf;
+    document.getElementById('edit-email').value = email;
+    document.getElementById('edit-tel').value = tel;
+
+    // Mostra il modal (usando Bootstrap)
+    const modal = new bootstrap.Modal(document.getElementById('modalModifica'));
+    modal.show();
+}
+
+// 2. Funzione per inviare la modifica al server
+document.getElementById('formModificaPaziente').onsubmit = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value;
+    const dati = {
+        nome: document.getElementById('edit-nome').value,
+        cognome: document.getElementById('edit-cognome').value,
+        codice_fiscale: document.getElementById('edit-cf').value,
+        email: document.getElementById('edit-email').value,
+        telefono: document.getElementById('edit-tel').value
+    };
+
+    const res = await fetch(`/pazienti/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dati)
+    });
+
+    if (res.ok) {
+        mostraNotifica("Paziente aggiornato! ✨");
+        bootstrap.Modal.getInstance(document.getElementById('modalModifica')).hide();
+        caricaDati(); // Ricarica la tabella
+    }
+};

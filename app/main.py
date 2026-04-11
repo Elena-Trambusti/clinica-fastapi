@@ -140,6 +140,26 @@ def crea_paziente(paziente: schemas.PazienteCreate, db: Session = Depends(get_db
 def leggi_pazienti(db: Session = Depends(get_db)):
     return db.query(models.Paziente).all()
 
+@app.put("/pazienti/{paziente_id}")
+def aggiorna_paziente(paziente_id: int, paziente_aggiornato: schemas.PazienteCreate, db: Session = Depends(get_db)):
+    # 1. Cerchiamo il paziente nel database
+    db_paziente = db.query(models.Paziente).filter(models.Paziente.id == paciente_id).first()
+    
+    if not db_paziente:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+
+    # 2. Sovrascriviamo i dati vecchi con quelli nuovi
+    db_paziente.nome = paziente_aggiornato.nome
+    db_paziente.cognome = paziente_aggiornato.cognome
+    db_paziente.codice_fiscale = paziente_aggiornato.codice_fiscale
+    db_paziente.email = paziente_aggiornato.email
+    db_paziente.telefono = paziente_aggiornato.telefono
+
+    # 3. Salviamo le modifiche
+    db.commit()
+    db.refresh(db_paziente)
+    return db_paziente
+
 @app.get("/")
 async def read_index():
     return FileResponse('index.html')
