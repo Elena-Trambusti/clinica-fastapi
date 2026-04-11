@@ -96,7 +96,33 @@ def leggi_turni(db: Session = Depends(get_db), current_user: models.User = Depen
 
 @app.post("/turni/", response_model=schemas.TurnoResponse)
 def crea_turno(turno: schemas.TurnoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    nuovo_turno = models.Turno(orario=turno.orario, stanza=turno.stanza, medico_id=turno.medico_id)
+    # 1. CONTROLLO MEDICO: Il medico è già occupato a quell'ora?
+    conflitto_medico = db.query(models.Turno).filter(
+        models.Turno.orario == turno.orario,
+        models.Turno.medico_id == turno.medico_id
+    ).first()
+    
+    if conflitto_medico:
+        raise HTTPException(status_code=400, detail="Il medico è già impegnato a quest'ora! 🚫")
+
+    # 2. CONTROLLO STANZA: La stanza è già occupata a quell'ora?
+    conflitto_stanza = db.query(models.Turno).filter(
+        models.Turno.orario == turno.orario,
+        models.Turno.stanza == turno.stanza
+    ).first()
+    
+    if conflitto_stanza:
+        raise HTTPException(status_code=400, detail="Stanza già occupata! Scegline un'altra. 🚫")
+# 2b. CONTROLLO PAZIENTE: Il paziente ha già un altro appuntamento a quell'ora?
+    conflitto_paziente = db.query(models.Turno).filter(
+        models.Turno.orario == turno.orario,
+        models.Turno.paziente_id == turno.paziente_id
+    ).first()
+
+    if conflitto_paziente:
+        raise HTTPException(status_code=400, detail="Il paziente ha già una visita a quest'ora! 🚫")
+    # 3. SALVATAGGIO (Solo se i controlli sopra passano)
+    nuovo_turno = models.Turno(**turno.dict())
     db.add(nuovo_turno)
     db.commit()
     db.refresh(nuovo_turno)
@@ -162,4 +188,26 @@ def esporta_pazienti(db: Session = Depends(get_db)):
         output,
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=lista_pazienti.csv"}
+    )
+# --- ESPORTAZIONE TURNI ---
+@app.get("/esporta-turni")
+def esporta_turni(db: Session = Depends(get_db)):
+    # 1. Prendiamo i turni
+    turni = db.query(models.Turno).all()
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # 2. Scriviamo i titoli delle colonne per i turni
+    writer.writerow(["ID", "Orario", "Stanza", "ID Medico", "ID Paziente"])
+    
+    # 3. Inseriamo i dati
+    for t in turni:
+        writer.writerow([t.id, t.orario, t.stanza, t.medico_id, t.paziente_id])
+    
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=agenda_turni.csv"}
     )

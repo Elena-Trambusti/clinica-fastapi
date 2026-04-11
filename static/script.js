@@ -189,8 +189,13 @@ async function aggiungiTurno(e) {
         caricaDati(); // Aggiorna le tabelle
         e.target.reset(); // Svuota il modulo
     } else {
-        // Se c'è un errore (es. stanza occupata o dati mancanti)
-        mostraNotifica("Errore nell'assegnazione del turno ❌", false);
+        // 1. Python ci ha mandato un errore. Dobbiamo "leggere" il messaggio.
+        // Usiamo 'await res.json()' per estrarre il testo dell'errore.
+        const rispostaErrore = await res.json();
+
+        // 2. Ora mostriamo il motivo preciso (rispostaErrore.detail)
+        // Se Python ha scritto "Stanza occupata", apparirà quello!
+        mostraNotifica(rispostaErrore.detail || "Errore generico ❌", false);
     }
 }
 
@@ -219,4 +224,42 @@ if (res.ok) {
 }
 function scaricaCSV() {
     window.location.href = "/esporta-pazienti";
+}
+function scaricaCSVTurni() {
+    // Chiama la rotta specifica per i turni
+    window.location.href = "/esporta-turni";
+}
+function filtraPazienti() {
+    // 1. Prendiamo quello che l'utente ha scritto e trasformiamolo in minuscolo
+    let input = document.getElementById("cercaPaziente").value.toLowerCase();
+    
+    // 2. Troviamo la tabella e tutte le sue righe
+    let tabella = document.getElementById("tabella-pazienti");
+    let righe = tabella.getElementsByTagName("tr");
+
+    // 3. Cicliamo tra le righe e nascondiamo quelle che non corrispondono
+    for (let i = 0; i < righe.length; i++) {
+        let testoRiga = righe[i].innerText.toLowerCase();
+        
+        if (testoRiga.includes(input)) {
+            righe[i].style.display = ""; // Mostra la riga
+        } else {
+            righe[i].style.display = "none"; // Nascondi la riga
+        }
+    }
+}
+function filtraMedici() {
+    let input = document.getElementById("cercaMedico").value.toLowerCase();
+    let tabella = document.getElementById("tabella-medici");
+    let righe = tabella.getElementsByTagName("tr");
+
+    for (let i = 0; i < righe.length; i++) {
+        let testoRiga = righe[i].innerText.toLowerCase();
+        
+        if (testoRiga.includes(input)) {
+            righe[i].style.display = ""; // Mostra la riga
+        } else {
+            righe[i].style.display = "none"; // Nascondi la riga
+        }
+    }
 }
