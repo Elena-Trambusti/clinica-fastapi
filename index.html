@@ -80,7 +80,12 @@
 
 <div class="bg-white p-4 rounded shadow mt-4">
 
+    <div class="d-flex justify-content-between align-items-center mb-3">
     <h3>👤 Gestione Pazienti</h3>
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="scaricaCSV()">
+        🟢 Scarica Excel (CSV)
+    </button>
+</div>
     <form onsubmit="aggiungiPaziente(event)">
         <input type="text" id="nome-paziente" class="form-control mb-2" placeholder="Nome" required>
         <input type="text" id="cognome-paziente" class="form-control mb-2" placeholder="Cognome" required>
@@ -106,13 +111,13 @@
     </div>
 <script src="/static/script.js"></script>
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
-  <div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+<div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div id="toast-body" class="toast-body">
+    <div id="toast-body" class="toast-body">
         </div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
-  </div>
+    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1,3 +1,6 @@
+import csv
+from io import StringIO
+from fastapi.responses import StreamingResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Depends, HTTPException, status
@@ -136,3 +139,27 @@ def elimina_paziente(paziente_id: int, db: Session = Depends(get_db)):
     db.delete(paziente)
     db.commit()
     return {"message": "Paziente eliminato"}
+
+# --- ROTTA PER SCARICARE I DATI DEI PAZIENTI ---
+@app.get("/esporta-pazienti")
+def esporta_pazienti(db: Session = Depends(get_db)):
+    # Prende i pazienti dal database
+    pazienti = db.query(models.Paziente).all()
+    
+    # Crea un file virtuale
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Scrive i titoli delle colonne
+    writer.writerow(["ID", "Nome", "Cognome", "Codice Fiscale", "Email", "Telefono"])
+    
+    # Scrive i dati dei pazienti
+    for p in pazienti:
+        writer.writerow([p.id, p.nome, p.cognome, p.codice_fiscale, p.email, p.telefono])
+    
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=lista_pazienti.csv"}
+    )

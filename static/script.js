@@ -1,4 +1,4 @@
-  function mostraNotifica(messaggio, successo = true) {
+function mostraNotifica(messaggio, successo = true) {
     const toastElement = document.getElementById('liveToast');
     const toastBody = document.getElementById('toast-body');
     
@@ -106,8 +106,7 @@ async function eliminaRecord(tipo, id) {
             const select = document.getElementById('id-medico-turno');
             tbodyM.innerHTML = ''; select.innerHTML = '<option value="" disabled selected>Seleziona Medico...</option>';
             
-            medici.forEach(m => {
-               // Sostituisci la riga 194 con questa:
+            medici.forEach(m => {  
 tbodyM.innerHTML += `<tr>
     <td>${m.id}</td>
     <td>${m.nome} ${m.cognome}</td>
@@ -217,4 +216,7 @@ if (res.ok) {
 } else {
     mostraNotifica("Errore nella registrazione del paziente ❌", false);
 }
+}
+function scaricaCSV() {
+    window.location.href = "/esporta-pazienti";
 }
