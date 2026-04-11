@@ -90,6 +90,24 @@ def crea_medico(medico: schemas.MedicoCreate, db: Session = Depends(get_db), cur
     db.refresh(nuovo_medico)
     return nuovo_medico
 
+# --- MODIFICA UN MEDICO ---
+@app.put("/medici/{medico_id}", response_model=schemas.MedicoResponse)
+def aggiorna_medico(medico_id: int, medico_aggiornato: schemas.MedicoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Cerchiamo il medico nel DB
+    db_medico = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
+    
+    if not db_medico:
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+
+    # Aggiorniamo i dati
+    db_medico.nome = medico_aggiornato.nome
+    db_medico.cognome = medico_aggiornato.cognome
+    db_medico.specializzazione = medico_aggiornato.specializzazione
+
+    db.commit()
+    db.refresh(db_medico)
+    return db_medico
+
 @app.get("/turni/", response_model=list[schemas.TurnoResponse])
 def leggi_turni(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Turno).all()
@@ -143,7 +161,7 @@ def leggi_pazienti(db: Session = Depends(get_db)):
 @app.put("/pazienti/{paziente_id}")
 def aggiorna_paziente(paziente_id: int, paziente_aggiornato: schemas.PazienteCreate, db: Session = Depends(get_db)):
     # 1. Cerchiamo il paziente nel database
-    db_paziente = db.query(models.Paziente).filter(models.Paziente.id == paciente_id).first()
+    db_paziente = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
     
     if not db_paziente:
         raise HTTPException(status_code=404, detail="Paziente non trovato")
@@ -231,3 +249,15 @@ def esporta_turni(db: Session = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=agenda_turni.csv"}
     )
+
+# --- CANCELLA UN TURNO ---
+@app.delete("/turni/{turno_id}")
+def elimina_turno(turno_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_turno = db.query(models.Turno).filter(models.Turno.id == turno_id).first()
+    
+    if not db_turno:
+        raise HTTPException(status_code=404, detail="Turno non trovato")
+    
+    db.delete(db_turno)
+    db.commit()
+    return {"message": "Turno eliminato correttamente"}

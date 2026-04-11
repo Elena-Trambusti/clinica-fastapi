@@ -108,14 +108,14 @@ async function eliminaRecord(tipo, id) {
             
             medici.forEach(m => {  
 tbodyM.innerHTML += `<tr>
-    <td>${m.id}</td>
-    <td>${m.nome} ${m.cognome}</td>
-    <td>
-        <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('medici', ${m.id})">
-            🗑️
-        </button>
-    </td>
-</tr>`;
+            <td>${m.id}</td>
+            <td>${m.nome} ${m.cognome}</td>
+            <td>
+                <button class="btn btn-outline-warning btn-sm me-1" onclick="preparaModificaMedico(${m.id}, '${m.nome}', '${m.cognome}', '${m.specializzazione || ''}')">✏️</button>
+                
+                <button class="btn btn-outline-danger btn-sm" onclick="eliminaRecord('medici', ${m.id})">🗑️</button>
+            </td>
+        </tr>`;
                 select.innerHTML += `<option value="${m.id}">Dott. ${m.nome} ${m.cognome}</option>`;
             });
 
@@ -125,7 +125,15 @@ tbodyM.innerHTML += `<tr>
             const tbodyT = document.getElementById('tabella-turni');
             tbodyT.innerHTML = '';
             turni.forEach(t => {
-                tbodyT.innerHTML += `<tr><td>${t.orario}</td><td>${t.stanza}</td><td>ID Medico: ${t.medico_id}</td><td>ID Paziente: ${t.paziente_id}</td></tr>`;
+                tbodyT.innerHTML += `<tr>
+            <td>${t.orario}</td>
+            <td>${t.stanza}</td>
+            <td>ID Medico: ${t.medico_id}</td>
+            <td>ID Paziente: ${t.paziente_id}</td>
+            <td>
+                <button class="btn btn-outline-danger btn-sm" onclick="eliminaTurno(${t.id})">🗑️</button>
+            </td>
+        </tr>`;
             });
         }
 
@@ -301,3 +309,54 @@ document.getElementById('formModificaPaziente').onsubmit = async (e) => {
         caricaDati(); // Ricarica la tabella
     }
 };
+
+// --- 1. LOGICA MODIFICA MEDICO ---
+async function preparaModificaMedico(id, nome, cognome, specializzazione) {
+    document.getElementById('edit-medico-id').value = id;
+    document.getElementById('edit-medico-nome').value = nome;
+    document.getElementById('edit-medico-cognome').value = cognome;
+    document.getElementById('edit-medico-specializzazione').value = specializzazione;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalModificaMedico'));
+    modal.show();
+}
+
+document.getElementById('formModificaMedico').onsubmit = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-medico-id').value;
+    const dati = {
+        nome: document.getElementById('edit-medico-nome').value,
+        cognome: document.getElementById('edit-medico-cognome').value,
+        specializzazione: document.getElementById('edit-medico-specializzazione').value
+    };
+
+    const res = await fetch(`/medici/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dati)
+    });
+
+    if (res.ok) {
+        mostraNotifica("Medico aggiornato con successo! 👨‍⚕️");
+        bootstrap.Modal.getInstance(document.getElementById('modalModificaMedico')).hide();
+        caricaDati(); // Aggiorna la tabella
+    } else {
+        mostraNotifica("Errore nell'aggiornamento ❌", false);
+    }
+};
+
+// --- 2. LOGICA ELIMINA TURNO ---
+async function eliminaTurno(id) {
+    if (confirm("Vuoi davvero cancellare questo appuntamento?")) {
+        const res = await fetch(`/turni/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (res.ok) {
+            mostraNotifica("Appuntamento rimosso! 🗑️");
+            caricaDati(); // Fa sparire la riga dalla tabella
+        } else {
+            mostraNotifica("Errore nella cancellazione ❌", false);
+        }
+    }
+}
