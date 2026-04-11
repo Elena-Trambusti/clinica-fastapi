@@ -141,6 +141,7 @@ tbodyM.innerHTML += `<tr>
 
         aggiornaInterfaccia();
         caricaPazienti();
+        caricaStatistiche();
 
 async function caricaPazienti() {
     const res = await fetch('/pazienti');
@@ -358,5 +359,26 @@ async function eliminaTurno(id) {
         } else {
             mostraNotifica("Errore nella cancellazione ❌", false);
         }
+    }
+}
+
+// --- CARICA LE STATISTICHE DELLA DASHBOARD ---
+async function caricaStatistiche() {
+    // Recuperiamo il pass (token) per avere il permesso di leggere
+    const token = localStorage.getItem('token');
+    
+    // Chiediamo i numeri a Python
+    const res = await fetch('/statistiche', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    // Se Python risponde con i dati...
+    if (res.ok) {
+        const dati = await res.json();
+        
+        // ...scriviamo i numeri dentro le "Card" di Bootstrap che hai appena creato
+        document.getElementById('stat-medici').innerText = dati.medici;
+        document.getElementById('stat-pazienti').innerText = dati.pazienti;
+        document.getElementById('stat-turni').innerText = dati.turni;
     }
 }

@@ -78,6 +78,21 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 # --- ROTTE PROTETTE (Richiedono il login) ---
 
+# --- DASHBOARD STATISTICHE ---
+@app.get("/statistiche")
+def get_statistiche(db: Session = Depends(get_db)):
+    # Contiamo quante righe ci sono in ogni tabella
+    tot_medici = db.query(models.Medico).count()
+    tot_pazienti = db.query(models.Paziente).count()
+    tot_turni = db.query(models.Turno).count()
+    
+    # Restituiamo i numeri
+    return {
+        "medici": tot_medici,
+        "pazienti": tot_pazienti,
+        "turni": tot_turni
+    }
+
 @app.get("/medici/", response_model=list[schemas.MedicoResponse])
 def leggi_medici(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Medico).all()
