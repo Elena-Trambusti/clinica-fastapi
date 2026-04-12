@@ -23,9 +23,10 @@
         ══════════════════════════════════════════ */
 
         #sezione-login {
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             background: #f0f4f8;
+            overflow: hidden;
         }
 
         /* Pannello sinistro — branding */
@@ -38,6 +39,7 @@
             justify-content: center;
             padding: 3.5rem 4rem;
             overflow: hidden;
+            overflow-y: auto;
         }
 
         /* Cerchi decorativi di sfondo */
@@ -147,6 +149,7 @@
             justify-content: center;
             padding: 2rem 3rem;
             background: #f8faff;
+            overflow-y: auto;
         }
 
         .login-card {
@@ -258,6 +261,25 @@
 
         /* ── RESPONSIVE LOGIN ── */
 
+        /* Schermo basso (< 700px di altezza): compatta il contenuto del pannello sinistro */
+        @media (max-height: 700px) and (min-width: 768px) {
+            .login-left { padding: 1.75rem 3rem; justify-content: flex-start; }
+            .login-badge { margin-bottom: .75rem; }
+            .login-brand-title { font-size: 1.9rem; margin-bottom: .4rem; }
+            .login-tagline { font-size: .82rem; margin-bottom: 1rem; }
+            .login-feature { margin-bottom: .55rem; }
+            .login-feature-icon { width: 30px; height: 30px; font-size: .85rem; }
+            .login-feature-desc { display: none; }
+        }
+
+        /* Schermo molto basso (< 540px di altezza): riduce ancora */
+        @media (max-height: 540px) and (min-width: 768px) {
+            .login-brand-title { font-size: 1.5rem; }
+            .login-tagline { display: none; }
+            .login-feature:nth-child(n+3) { display: none; }
+            .login-card-inner { padding: 1.5rem 1.25rem; }
+        }
+
         /* Laptop medio (< 1200px) */
         @media (max-width: 1199px) {
             .login-left  { padding: 2.5rem 2.5rem; }
@@ -276,9 +298,9 @@
 
         /* Tablet portrait / mobile grande (< 768px): impila verticalmente */
         @media (max-width: 767px) {
-            #sezione-login { flex-direction: column; overflow-y: auto; }
-            .login-left  { width: 100%; padding: 2rem 1.5rem; }
-            .login-right { width: 100%; padding: 1.5rem 1rem; min-height: auto; }
+            #sezione-login { height: auto; min-height: 100vh; flex-direction: column; overflow: visible; overflow-y: auto; }
+            .login-left  { width: 100%; padding: 2rem 1.5rem; overflow-y: visible; }
+            .login-right { width: 100%; padding: 1.5rem 1rem; min-height: auto; overflow-y: visible; }
             .login-brand-title { font-size: 1.65rem; margin-bottom: .5rem; }
             .login-tagline { margin-bottom: 1.25rem; font-size: .82rem; }
             .login-feature { margin-bottom: .75rem; }
