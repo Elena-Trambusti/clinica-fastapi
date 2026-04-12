@@ -1,6 +1,7 @@
 import csv
 import os
-from datetime import datetime, timedelta
+from collections import Counter, defaultdict
+from datetime import date, datetime, timedelta
 from io import StringIO
 
 from dotenv import load_dotenv
@@ -91,15 +92,97 @@ def login(
 
 # --- DASHBOARD ---
 
-@app.get("/statistiche")
-def get_statistiche(
+@app.get("/dashboard")
+def get_dashboard(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    # Totali
+    tot_medici = db.query(models.Medico).count()
+    tot_pazienti = db.query(models.Paziente).count()
+    tot_turni = db.query(models.Turno).count()
+    tot_visite = db.query(models.Visita).count()
+
+    # Turni per giorno della settimana
+    nomi_giorni = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+    conteggio_giorni = [0] * 7
+    turni = db.query(models.Turno).all()
+    for t in turni:
+        try:
+            dt = datetime.fromisoformat(t.orario)
+            conteggio_giorni[dt.weekday()] += 1
+        except (ValueError, TypeError):
+            pass
+
+    # Distribuzione medici per specializzazione
+    medici = db.query(models.Medico).all()
+    spec_counts: dict = defaultdict(int)
+    for m in medici:
+        spec_counts[m.specializzazione or "Non specificata"] += 1
+
+    # Visite per mese (ultimi 6 mesi)
+    mesi_labels = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+    visite = db.query(models.Visita).all()
+    mese_counts: dict = defaultdict(int)
+    for v in visite:
+        try:
+            dt = datetime.fromisoformat(v.data_visita)
+            mese_counts[f"{dt.year}-{dt.month:02d}"] += 1
+        except (ValueError, TypeError):
+            pass
+
+    oggi = date.today()
+    ultimi_6: list = []
+    for i in range(5, -1, -1):
+        m = oggi.month - i
+        y = oggi.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        key = f"{y}-{m:02d}"
+        ultimi_6.append({"label": mesi_labels[m - 1], "count": mese_counts.get(key, 0)})
+
+    # Medico più attivo (per numero di turni)
+    medico_id_counts = Counter(t.medico_id for t in turni if t.medico_id)
+    medico_piu_attivo = {"nome": "—", "turni": 0, "specializzazione": ""}
+    if medico_id_counts:
+        top_id, top_count = medico_id_counts.most_common(1)[0]
+        m_top = db.query(models.Medico).filter(models.Medico.id == top_id).first()
+        if m_top:
+            medico_piu_attivo = {
+                "nome": f"Dott. {m_top.nome} {m_top.cognome}",
+                "turni": top_count,
+                "specializzazione": m_top.specializzazione or "",
+            }
+
+    # Turni del mese corrente
+    prefisso_mese = f"{oggi.year}-{oggi.month:02d}"
+    turni_questo_mese = sum(
+        1 for t in turni
+        if t.orario and t.orario.startswith(prefisso_mese)
+    )
+
     return {
-        "medici": db.query(models.Medico).count(),
-        "pazienti": db.query(models.Paziente).count(),
-        "turni": db.query(models.Turno).count(),
+        "totali": {
+            "medici": tot_medici,
+            "pazienti": tot_pazienti,
+            "turni": tot_turni,
+            "visite": tot_visite,
+        },
+        "turni_per_giorno": {
+            "labels": nomi_giorni,
+            "data": conteggio_giorni,
+        },
+        "specializzazioni": {
+            "labels": list(spec_counts.keys()),
+            "data": list(spec_counts.values()),
+        },
+        "visite_per_mese": {
+            "labels": [x["label"] for x in ultimi_6],
+            "data": [x["count"] for x in ultimi_6],
+        },
+        "medico_piu_attivo": medico_piu_attivo,
+        "turni_questo_mese": turni_questo_mese,
     }
 
 

@@ -45,8 +45,6 @@ function aggiornaInterfaccia() {
         document.getElementById('sezione-login').style.display = 'none';
         document.getElementById('sezione-app').style.display = 'block';
         caricaTutto();
-        // Piccolo delay per permettere al DOM di renderizzare prima di FullCalendar
-        setTimeout(initCalendario, 80);
     } else {
         document.getElementById('sezione-login').style.display = '';   // CSS gestisce flex
         document.getElementById('sezione-app').style.display = 'none';
@@ -82,8 +80,11 @@ function logout() {
 let _medicoMap = {};
 let _pazienteMap = {};
 
+// Istanze Chart.js (distrutte e ricreate ad ogni refresh dashboard)
+let _charts = {};
+
 async function caricaTutto() {
-    await Promise.all([caricaDati(), caricaPazienti(), caricaStatistiche()]);
+    await Promise.all([caricaDati(), caricaPazienti(), caricaDashboard()]);
 }
 
 async function caricaDati() {
@@ -204,13 +205,170 @@ async function caricaPazienti() {
     });
 }
 
-async function caricaStatistiche() {
-    const res = await fetch('/statistiche', { headers: authHeaders() });
+async function caricaDashboard() {
+    const res = await fetch('/dashboard', { headers: authHeaders() });
     if (!res.ok) return;
     const d = await res.json();
-    document.getElementById('stat-medici').innerText   = d.medici;
-    document.getElementById('stat-pazienti').innerText = d.pazienti;
-    document.getElementById('stat-turni').innerText    = d.turni;
+
+    // KPI cards
+    document.getElementById('stat-medici').innerText   = d.totali.medici;
+    document.getElementById('stat-pazienti').innerText = d.totali.pazienti;
+    document.getElementById('stat-turni').innerText    = d.totali.turni;
+    document.getElementById('stat-visite').innerText   = d.totali.visite;
+
+    // Medico più attivo
+    document.getElementById('dash-medico-nome').innerText   = escapeHtml(d.medico_piu_attivo.nome);
+    document.getElementById('dash-medico-turni').innerText  = d.medico_piu_attivo.turni;
+    document.getElementById('dash-turni-mese').innerText    = d.turni_questo_mese;
+    const specEl = document.getElementById('dash-medico-spec');
+    if (d.medico_piu_attivo.specializzazione) {
+        specEl.innerText = d.medico_piu_attivo.specializzazione;
+        specEl.style.display = 'inline-block';
+    } else {
+        specEl.style.display = 'none';
+    }
+
+    _initGrafici(d);
+}
+
+function _destroyChart(key) {
+    if (_charts[key]) {
+        _charts[key].destroy();
+        _charts[key] = null;
+    }
+}
+
+function _initGrafici(d) {
+    const palette = [
+        '#0d6efd','#198754','#dc3545','#fd7e14',
+        '#6f42c1','#20c997','#d63384','#0dcaf0',
+    ];
+
+    // ── Grafico 1: Turni per giorno della settimana (Bar) ──
+    _destroyChart('turniGiorno');
+    const ctxBar = document.getElementById('chart-turni-giorno');
+    if (ctxBar) {
+        _charts.turniGiorno = new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: d.turni_per_giorno.labels,
+                datasets: [{
+                    label: 'Appuntamenti',
+                    data: d.turni_per_giorno.data,
+                    backgroundColor: d.turni_per_giorno.labels.map((_, i) =>
+                        i === 5 || i === 6 ? 'rgba(108,117,125,.35)' : 'rgba(13,110,253,.75)'
+                    ),
+                    borderColor: d.turni_per_giorno.labels.map((_, i) =>
+                        i === 5 || i === 6 ? '#6c757d' : '#0d6efd'
+                    ),
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: {
+                        label: ctx => ` ${ctx.parsed.y} appuntamenti`,
+                    }},
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,.05)' },
+                    },
+                    x: {
+                        ticks: { font: { size: 11 } },
+                        grid: { display: false },
+                    },
+                },
+            },
+        });
+    }
+
+    // ── Grafico 2: Specializzazioni (Doughnut) ──
+    _destroyChart('specializzazioni');
+    const ctxDough = document.getElementById('chart-specializzazioni');
+    if (ctxDough) {
+        const hasData = d.specializzazioni.data.length > 0;
+        _charts.specializzazioni = new Chart(ctxDough, {
+            type: 'doughnut',
+            data: {
+                labels: hasData ? d.specializzazioni.labels : ['Nessun medico'],
+                datasets: [{
+                    data: hasData ? d.specializzazioni.data : [1],
+                    backgroundColor: hasData
+                        ? d.specializzazioni.labels.map((_, i) => palette[i % palette.length])
+                        : ['#dee2e6'],
+                    borderWidth: 2,
+                    borderColor: '#fff',
+                    hoverOffset: 8,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { font: { size: 11 }, padding: 10, boxWidth: 12 },
+                    },
+                    tooltip: { callbacks: {
+                        label: ctx => ` ${ctx.label}: ${ctx.parsed} medic${ctx.parsed === 1 ? 'o' : 'i'}`,
+                    }},
+                },
+            },
+        });
+    }
+
+    // ── Grafico 3: Visite per mese (Line) ──
+    _destroyChart('visiteMese');
+    const ctxLine = document.getElementById('chart-visite-mese');
+    if (ctxLine) {
+        _charts.visiteMese = new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: d.visite_per_mese.labels,
+                datasets: [{
+                    label: 'Visite',
+                    data: d.visite_per_mese.data,
+                    borderColor: '#6f42c1',
+                    backgroundColor: 'rgba(111,66,193,.12)',
+                    pointBackgroundColor: '#6f42c1',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2.5,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: {
+                        label: ctx => ` ${ctx.parsed.y} visit${ctx.parsed.y === 1 ? 'a' : 'e'}`,
+                    }},
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,.05)' },
+                    },
+                    x: {
+                        ticks: { font: { size: 11 } },
+                        grid: { display: false },
+                    },
+                },
+            },
+        });
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -334,7 +492,7 @@ async function eliminaTurnoDalCalendario() {
     if (res.ok) {
         mostraNotifica('Appuntamento eliminato.');
         caricaDati();
-        caricaStatistiche();
+        caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || "Errore nell'eliminazione.", false);
@@ -342,15 +500,26 @@ async function eliminaTurnoDalCalendario() {
     _turnoSelezionatoId = null;
 }
 
-// Refresh calendario quando si torna al tab (ridisegna layout correttamente)
+// Gestione tab: Calendario (lazy init + resize) e Dashboard (resize grafici)
 document.addEventListener('DOMContentLoaded', () => {
+    // Calendario: inizializzato la prima volta che si apre il tab
     const tabCal = document.getElementById('tab-calendario');
     if (tabCal) {
         tabCal.addEventListener('shown.bs.tab', () => {
-            if (calendario) {
+            if (!calendario) {
+                initCalendario();
+            } else {
                 calendario.updateSize();
                 calendario.refetchEvents();
             }
+        });
+    }
+
+    // Dashboard: ridimensiona i grafici Chart.js quando il tab diventa visibile
+    const tabDash = document.getElementById('tab-dashboard');
+    if (tabDash) {
+        tabDash.addEventListener('shown.bs.tab', () => {
+            Object.values(_charts).forEach(c => c && c.resize());
         });
     }
 });
@@ -377,7 +546,7 @@ async function aggiungiMedico(event) {
         mostraNotifica('Medico registrato con successo.');
         event.target.reset();
         caricaDati();
-        caricaStatistiche();
+        caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || 'Errore nella registrazione del medico.', false);
@@ -440,7 +609,7 @@ async function aggiungiTurno(e) {
         mostraNotifica('Appuntamento creato con successo.');
         e.target.reset();
         caricaDati();
-        caricaStatistiche();
+        caricaDashboard();
         // Torna al calendario per vedere l'evento appena creato
         bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-calendario')).show();
     } else {
@@ -460,7 +629,7 @@ async function eliminaTurno(id) {
     if (res.ok) {
         mostraNotifica('Appuntamento eliminato.');
         caricaDati();
-        caricaStatistiche();
+        caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || "Errore.", false);
@@ -491,7 +660,7 @@ async function aggiungiPaziente(e) {
         mostraNotifica('Paziente registrato con successo.');
         e.target.reset();
         caricaPazienti();
-        caricaStatistiche();
+        caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || 'Errore nella registrazione.', false);
@@ -551,7 +720,7 @@ async function eliminaRecord(tipo, id) {
         mostraNotifica('Eliminato con successo.');
         caricaDati();
         caricaPazienti();
-        caricaStatistiche();
+        caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || "Errore durante l'eliminazione.", false);
