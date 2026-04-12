@@ -136,6 +136,16 @@ def require_admin(current_user: models.User = Depends(get_current_user)) -> mode
     return current_user
 
 
+def require_seg_o_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    r = (current_user.ruolo or "").lower()
+    if r not in ("admin", "segreteria"):
+        raise HTTPException(
+            status_code=403,
+            detail="Operazione riservata ad amministratori o segreteria",
+        )
+    return current_user
+
+
 # --- AUTENTICAZIONE ---
 
 @app.post("/register", response_model=schemas.UserResponse)
@@ -525,6 +535,56 @@ def elimina_medico(
     return {"message": "Medico eliminato"}
 
 
+@app.get("/medici/{medico_id}/disponibilita", response_model=list[schemas.FasciaDisponibilitaResponse])
+def get_disponibilita_medico(
+    medico_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    med = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+    return (
+        db.query(models.FasciaDisponibilita)
+        .filter(models.FasciaDisponibilita.medico_id == medico_id)
+        .order_by(models.FasciaDisponibilita.giorno_settimana, models.FasciaDisponibilita.id)
+        .all()
+    )
+
+
+@app.put("/medici/{medico_id}/disponibilita", response_model=list[schemas.FasciaDisponibilitaResponse])
+def put_disponibilita_medico(
+    medico_id: int,
+    payload: schemas.DisponibilitaMedicoReplace,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_seg_o_admin),
+):
+    med = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+
+    db.query(models.FasciaDisponibilita).filter(
+        models.FasciaDisponibilita.medico_id == medico_id
+    ).delete(synchronize_session=False)
+
+    for f in payload.fascie:
+        db.add(
+            models.FasciaDisponibilita(
+                medico_id=medico_id,
+                giorno_settimana=f.giorno_settimana,
+                ora_inizio=f.ora_inizio,
+                ora_fine=f.ora_fine,
+            )
+        )
+    db.commit()
+    return (
+        db.query(models.FasciaDisponibilita)
+        .filter(models.FasciaDisponibilita.medico_id == medico_id)
+        .order_by(models.FasciaDisponibilita.giorno_settimana, models.FasciaDisponibilita.id)
+        .all()
+    )
+
+
 # --- TURNI ---
 
 @app.get("/turni/", response_model=list[schemas.TurnoResponse])
@@ -535,6 +595,45 @@ def leggi_turni(
     current_user: models.User = Depends(get_current_user),
 ):
     return db.query(models.Turno).offset(skip).limit(limit).all()
+
+
+def _hhmm_to_minutes(s: str) -> int:
+    p = (s or "").strip().split(":")
+    return int(p[0]) * 60 + int(p[1] if len(p) > 1 else 0)
+
+
+def _orario_rispetta_disponibilita(dt: datetime, fascie: list[models.FasciaDisponibilita]) -> bool:
+    if not fascie:
+        return True
+    wd = dt.weekday()
+    mins = dt.hour * 60 + dt.minute
+    for f in fascie:
+        if f.giorno_settimana != wd:
+            continue
+        a = _hhmm_to_minutes(f.ora_inizio)
+        b = _hhmm_to_minutes(f.ora_fine)
+        if a <= mins <= b:
+            return True
+    return False
+
+
+def _assert_turno_in_disponibilita(db: Session, orario_str: str, medico_id: int) -> None:
+    fascie = (
+        db.query(models.FasciaDisponibilita)
+        .filter(models.FasciaDisponibilita.medico_id == medico_id)
+        .all()
+    )
+    if not fascie:
+        return
+    dt = _parse_iso_datetime(orario_str)
+    if dt is None:
+        raise HTTPException(status_code=400, detail="Orario appuntamento non valido")
+    if not _orario_rispetta_disponibilita(dt, fascie):
+        raise HTTPException(
+            status_code=400,
+            detail="Orario fuori dalle fasce di disponibilita del medico. "
+            "Controlla gli orari in Medici > Disponibilita o scegli un altro orario.",
+        )
 
 
 def _invia_email_conferma_bg(turno_id: int) -> None:
@@ -602,6 +701,8 @@ def crea_turno(
         raise HTTPException(
             status_code=400, detail="Il paziente ha gia' una visita a quest'ora"
         )
+
+    _assert_turno_in_disponibilita(db, turno.orario, turno.medico_id)
 
     nuovo_turno = models.Turno(**turno.model_dump())
     db.add(nuovo_turno)
@@ -1255,17 +1356,20 @@ _COLORS = [
 
 @app.get("/turni/calendario")
 def turni_calendario(
+    medico_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    turni = (
+    q = (
         db.query(models.Turno)
         .options(
             joinedload(models.Turno.medico_assegnato),
             joinedload(models.Turno.paziente_assegnato),
         )
-        .all()
     )
+    if medico_id is not None:
+        q = q.filter(models.Turno.medico_id == medico_id)
+    turni = q.all()
 
     events = []
     for t in turni:

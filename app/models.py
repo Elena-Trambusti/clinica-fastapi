@@ -15,6 +15,22 @@ class Medico(Base):
     turni = relationship("Turno", back_populates="medico_assegnato")
     visite = relationship("Visita", back_populates="medico")
     prescrizioni = relationship("Prescrizione", back_populates="medico")
+    fascie_disponibilita = relationship(
+        "FasciaDisponibilita", back_populates="medico", cascade="all, delete-orphan"
+    )
+
+
+class FasciaDisponibilita(Base):
+    """Fasce orarie settimanali accettate per nuove prenotazioni (giorno 0=Lunedì … 6=Domenica)."""
+    __tablename__ = "fascie_disponibilita"
+
+    id = Column(Integer, primary_key=True, index=True)
+    medico_id = Column(Integer, ForeignKey("medici.id", ondelete="CASCADE"), nullable=False)
+    giorno_settimana = Column(Integer, nullable=False)  # 0=Lun … 6=Dom (come Python weekday)
+    ora_inizio = Column(String, nullable=False)          # "HH:MM"
+    ora_fine = Column(String, nullable=False)
+
+    medico = relationship("Medico", back_populates="fascie_disponibilita")
 
 
 class Paziente(Base):

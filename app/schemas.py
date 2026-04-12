@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 
 # --- MEDICI ---
@@ -14,6 +14,53 @@ class MedicoCreate(BaseModel):
 
 class MedicoResponse(MedicoCreate):
     id: int
+
+    model_config = {"from_attributes": True}
+
+
+_ORA_HHMM = re.compile(r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class FasciaDisponibilitaItem(BaseModel):
+    """Una fascia oraria per un giorno della settimana (0=Lunedì … 6=Domenica)."""
+    giorno_settimana: int
+    ora_inizio: str
+    ora_fine: str
+
+    @field_validator("giorno_settimana")
+    @classmethod
+    def giorno_ok(cls, v: int) -> int:
+        if v < 0 or v > 6:
+            raise ValueError("giorno_settimana deve essere tra 0 (Lunedì) e 6 (Domenica)")
+        return v
+
+    @field_validator("ora_inizio", "ora_fine")
+    @classmethod
+    def ora_ok(cls, v: str) -> str:
+        t = v.strip()
+        if not _ORA_HHMM.match(t):
+            raise ValueError("Formato ora atteso HH:MM (es. 09:00)")
+        parts = t.split(":")
+        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+
+    @model_validator(mode="after")
+    def fine_dopo_inizio(self):
+        def mm(s: str) -> int:
+            p = s.split(":")
+            return int(p[0]) * 60 + int(p[1])
+
+        if mm(self.ora_fine) < mm(self.ora_inizio):
+            raise ValueError("ora_fine deve essere uguale o successiva a ora_inizio")
+        return self
+
+
+class DisponibilitaMedicoReplace(BaseModel):
+    fascie: list[FasciaDisponibilitaItem]
+
+
+class FasciaDisponibilitaResponse(FasciaDisponibilitaItem):
+    id: int
+    medico_id: int
 
     model_config = {"from_attributes": True}
 

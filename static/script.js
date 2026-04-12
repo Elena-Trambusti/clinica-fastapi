@@ -346,6 +346,12 @@ async function caricaDati() {
     selectM.innerHTML = '<option value="" disabled selected>Seleziona medico...</option>';
     if (filtroM) filtroM.innerHTML = '<option value="">Tutti i medici</option>';
 
+    const calFiltroCal = document.getElementById('cal-filtro-medico');
+    const prevCalMed = calFiltroCal ? calFiltroCal.value : '';
+    if (calFiltroCal) {
+        calFiltroCal.innerHTML = '<option value="">Tutti i medici</option>';
+    }
+
     medici.forEach(m => {
         _medicoMap[m.id] = { nome: `${m.nome} ${m.cognome}`, spec: m.specializzazione };
 
@@ -356,6 +362,8 @@ async function caricaDati() {
             <td class="fw-semibold">${escapeHtml(m.nome)} ${escapeHtml(m.cognome)}</td>
             <td><span class="badge bg-info text-dark">${escapeHtml(m.specializzazione)}</span></td>
             <td>
+                <button type="button" class="btn btn-outline-info btn-sm me-1"
+                    onclick="apriDisponibilita(${m.id})">Orari</button>
                 ${isAdmin ? `
                 <button class="btn btn-outline-warning btn-sm me-1"
                     onclick="preparaModificaMedico(${m.id},'${escapeHtml(m.nome)}','${escapeHtml(m.cognome)}','${escapeHtml(m.specializzazione || '')}')">
@@ -367,6 +375,13 @@ async function caricaDati() {
                 </button>` : '<span class="text-muted small">Sola lettura</span>'}
             </td>`;
         tbodyM.appendChild(tr);
+
+        if (calFiltroCal) {
+            const cOpt = document.createElement('option');
+            cOpt.value = m.id;
+            cOpt.textContent = `Dott. ${m.nome} ${m.cognome}`;
+            calFiltroCal.appendChild(cOpt);
+        }
 
         const opt = document.createElement('option');
         opt.value = m.id;
@@ -380,6 +395,10 @@ async function caricaDati() {
             filtroM.appendChild(fOpt);
         }
     });
+
+    if (calFiltroCal && prevCalMed) {
+        calFiltroCal.value = prevCalMed;
+    }
 
     aggiornaLegendaCalendario(medici);
 
@@ -942,9 +961,14 @@ function initCalendario() {
         slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
 
-        // Fonte eventi: chiama il nostro endpoint
+        // Fonte eventi: chiama il nostro endpoint (opz. filtro medico = agenda personale)
         events: function(fetchInfo, successCb, failureCb) {
-            fetch('/turni/calendario', { headers: authHeaders() })
+            const sel = document.getElementById('cal-filtro-medico');
+            let url = '/turni/calendario';
+            if (sel && sel.value) {
+                url += `?medico_id=${encodeURIComponent(sel.value)}`;
+            }
+            fetch(url, { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : Promise.reject(r))
                 .then(ev => successCb(ev))
                 .catch(err => failureCb(err));
@@ -988,6 +1012,75 @@ function aggiornaLegendaCalendario(medici) {
                           Dott. ${escapeHtml(m.cognome)}`;
         contenitore.appendChild(span);
     });
+}
+
+const _GIORNI_DISP = [
+    'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica',
+];
+
+async function apriDisponibilita(medicoId) {
+    const m = _allMedici.find((x) => x.id === medicoId);
+    document.getElementById('disp-medico-id').value = String(medicoId);
+    document.getElementById('modal-disp-titolo').textContent = m
+        ? `Disponibilità — Dott. ${m.nome} ${m.cognome}`
+        : 'Disponibilità medico';
+    const canEdit = _userRole === 'admin' || _userRole === 'segreteria';
+    document.getElementById('btn-salva-disponibilita').style.display = canEdit ? '' : 'none';
+
+    await _renderTabellaDisponibilita(medicoId, canEdit);
+    new bootstrap.Modal(document.getElementById('modalDisponibilita')).show();
+}
+
+async function _renderTabellaDisponibilita(medicoId, canEdit) {
+    const res = await fetch(`/medici/${medicoId}/disponibilita`, { headers: authHeaders() });
+    const rows = res.ok ? await res.json() : [];
+    const byDay = {};
+    rows.forEach((r) => {
+        if (byDay[r.giorno_settimana] === undefined) {
+            byDay[r.giorno_settimana] = r;
+        }
+    });
+    const disAttr = canEdit ? '' : 'disabled';
+    const tb = document.getElementById('disp-tbody');
+    tb.innerHTML = _GIORNI_DISP.map((label, i) => {
+        const r = byDay[i];
+        const che = r ? 'checked' : '';
+        const ini = r && r.ora_inizio ? String(r.ora_inizio).substring(0, 5) : '09:00';
+        const fin = r && r.ora_fine ? String(r.ora_fine).substring(0, 5) : '18:00';
+        return `<tr>
+            <td class="fw-semibold">${label}</td>
+            <td class="text-center"><input type="checkbox" class="form-check-input disp-on" data-d="${i}" ${che} ${disAttr}></td>
+            <td><input type="time" class="form-control form-control-sm disp-ini" data-d="${i}" value="${ini}" ${disAttr}></td>
+            <td><input type="time" class="form-control form-control-sm disp-fin" data-d="${i}" value="${fin}" ${disAttr}></td>
+        </tr>`;
+    }).join('');
+}
+
+async function salvaDisponibilita() {
+    const id = document.getElementById('disp-medico-id').value;
+    const fascie = [];
+    for (let i = 0; i < 7; i++) {
+        const on = document.querySelector(`.disp-on[data-d="${i}"]`);
+        if (!on || !on.checked) continue;
+        const iniEl = document.querySelector(`.disp-ini[data-d="${i}"]`);
+        const finEl = document.querySelector(`.disp-fin[data-d="${i}"]`);
+        const ini = iniEl ? iniEl.value : '';
+        const fin = finEl ? finEl.value : '';
+        if (!ini || !fin) continue;
+        fascie.push({ giorno_settimana: i, ora_inizio: ini, ora_fine: fin });
+    }
+    const res = await fetch(`/medici/${id}/disponibilita`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fascie }),
+    });
+    if (res.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('modalDisponibilita'))?.hide();
+        mostraNotifica('Orari di disponibilità salvati.');
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(formatApiError(err), false);
+    }
 }
 
 function mostraDettaglioTurno(event) {
