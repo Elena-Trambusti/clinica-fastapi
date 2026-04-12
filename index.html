@@ -1286,7 +1286,7 @@
                             <th>Medico</th>
                             <th>Paziente</th>
                             <th style="width:120px">Stato</th>
-                            <th style="width:90px">Azioni</th>
+                            <th style="width:120px">Azioni</th>
                         </tr>
                     </thead>
                     <tbody id="tabella-turni"></tbody>
@@ -1442,6 +1442,28 @@
                             </div>
                         </div>
                     </form>
+                </div>
+
+                <!-- Sezione Email -->
+                <div class="form-sezione mb-4" style="border-left: 3px solid #0d6efd">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-semibold mb-1">📧 Configurazione Email</h6>
+                            <p class="text-muted small mb-2">
+                                Aggiungi le variabili SMTP nel file <code>.env</code> per abilitare email automatiche.
+                            </p>
+                            <span id="email-stato-badge" class="badge bg-secondary">Caricamento...</span>
+                            <span id="email-stato-info" class="text-muted small ms-2"></span>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-primary btn-sm" onclick="testEmail()">
+                                📨 Invia email di test
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="inviaPromemoriaDomani()">
+                                📅 Promemoria domani (manuale)
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <h6 class="fw-semibold mb-2 text-secondary">Utenti Registrati</h6>

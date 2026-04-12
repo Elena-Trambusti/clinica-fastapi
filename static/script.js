@@ -414,9 +414,11 @@ function _renderTabellaTurni(lista) {
             <td>Dott. ${escapeHtml(nomeMedico)}</td>
             <td>${escapeHtml(nomePaz)}</td>
             <td>${_buildStatoSelect(t.id, t.stato)}</td>
-            <td>
+            <td class="d-flex gap-1 flex-wrap">
+                <button class="btn btn-outline-primary btn-sm" title="Invia email promemoria al paziente"
+                    onclick="inviaEmailTurno(${t.id})">📧</button>
                 ${canDeleteTurno ? `<button class="btn btn-outline-danger btn-sm"
-                    onclick="eliminaTurno(${t.id})">Elimina</button>` : '—'}
+                    onclick="eliminaTurno(${t.id})">Elimina</button>` : ''}
             </td>`;
         tbody.appendChild(tr);
     });
@@ -1705,9 +1707,81 @@ async function eliminaUtente(id) {
 document.addEventListener('DOMContentLoaded', () => {
     const tabUtenti = document.getElementById('tab-utenti');
     if (tabUtenti) {
-        tabUtenti.addEventListener('shown.bs.tab', caricaUtenti);
+        tabUtenti.addEventListener('shown.bs.tab', () => {
+            caricaUtenti();
+            caricaStatoEmail();
+        });
     }
 });
+
+// ═══════════════════════════════════════════════════════
+//  EMAIL AUTOMATICHE
+// ═══════════════════════════════════════════════════════
+
+async function caricaStatoEmail() {
+    const badge = document.getElementById('email-stato-badge');
+    const info  = document.getElementById('email-stato-info');
+    if (!badge) return;
+    try {
+        const res = await fetch('/email/stato', { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.abilitato) {
+            badge.textContent = '✅ Abilitata';
+            badge.className   = 'badge bg-success';
+            if (info) info.textContent = `Da: ${data.from || data.user}`;
+        } else {
+            badge.textContent = '❌ Non configurata';
+            badge.className   = 'badge bg-warning text-dark';
+            if (info) info.textContent = 'Aggiungi SMTP_HOST, SMTP_USER, SMTP_PASS nel file .env';
+        }
+    } catch {
+        if (badge) { badge.textContent = 'Errore'; badge.className = 'badge bg-danger'; }
+    }
+}
+
+async function testEmail() {
+    const res = await fetch('/email/test', {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        const data = await res.json();
+        mostraNotifica(data.message, true);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore invio email di test', false);
+    }
+}
+
+async function inviaPromemoriaDomani() {
+    if (!confirm('Inviare email di promemoria a tutti i pazienti con appuntamento domani?')) return;
+    const res = await fetch('/email/promemoria-domani', {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        const data = await res.json();
+        mostraNotifica(data.message, true);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore invio promemoria', false);
+    }
+}
+
+async function inviaEmailTurno(id) {
+    const res = await fetch(`/turni/${id}/email`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        const data = await res.json();
+        mostraNotifica(data.message, true);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Impossibile inviare email (controlla la configurazione SMTP)', false);
+    }
+}
 
 // ═══════════════════════════════════════════════════════
 //  AVVIO

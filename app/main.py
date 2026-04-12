@@ -4,8 +4,9 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from io import StringIO
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -15,6 +16,12 @@ from sqlalchemy.orm import Session, joinedload
 
 from . import auth, models, schemas
 from .database import SessionLocal, engine
+from .email_utils import (
+    build_email_conferma,
+    build_email_promemoria,
+    get_email_config,
+    send_email,
+)
 
 load_dotenv()
 
@@ -37,6 +44,48 @@ for _m in _migrations:
 app = FastAPI(title="Gestionale Clinica Pro")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# ── Scheduler per promemoria automatici ──────────────────────────────────────
+
+def _job_promemoria_domani() -> None:
+    """Invia email di promemoria per tutti gli appuntamenti di domani (ore 08:00)."""
+    db = SessionLocal()
+    try:
+        domani = (date.today() + timedelta(days=1)).isoformat()
+        turni = (
+            db.query(models.Turno)
+            .options(
+                joinedload(models.Turno.paziente_assegnato),
+                joinedload(models.Turno.medico_assegnato),
+            )
+            .filter(models.Turno.orario.startswith(domani))
+            .all()
+        )
+        inviati = 0
+        for t in turni:
+            paz = t.paziente_assegnato
+            med = t.medico_assegnato
+            if paz and paz.email and med:
+                orario_fmt = datetime.fromisoformat(t.orario).strftime("%d/%m/%Y %H:%M")
+                html = build_email_promemoria(
+                    paziente_nome=f"{paz.nome} {paz.cognome}",
+                    medico_nome=f"Dott. {med.nome} {med.cognome}",
+                    orario=orario_fmt,
+                    stanza=t.stanza,
+                )
+                if send_email(paz.email, "Promemoria appuntamento di domani", html):
+                    inviati += 1
+        print(f"[SCHEDULER] Promemoria domani: {inviati}/{len(turni)} email inviate")
+    except Exception as exc:
+        print(f"[SCHEDULER] Errore: {exc}")
+    finally:
+        db.close()
+
+
+_scheduler = BackgroundScheduler(timezone="Europe/Rome")
+_scheduler.add_job(_job_promemoria_domani, "cron", hour=8, minute=0)
+_scheduler.start()
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000")
 allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
@@ -162,6 +211,50 @@ def elimina_utente(
     db.delete(utente)
     db.commit()
     return {"message": "Utente eliminato"}
+
+
+# --- EMAIL ---
+
+@app.get("/email/stato")
+def stato_email(current_user: models.User = Depends(get_current_user)):
+    cfg = get_email_config()
+    return {
+        "abilitato": cfg["enabled"],
+        "host":  cfg["host"] if cfg["enabled"] else "",
+        "user":  cfg["user"] if cfg["enabled"] else "",
+        "from":  cfg["from"] if cfg["enabled"] else "",
+    }
+
+
+@app.post("/email/test")
+def test_email(
+    current_user: models.User = Depends(require_admin),
+):
+    cfg = get_email_config()
+    if not cfg["enabled"]:
+        raise HTTPException(status_code=400, detail="Email non configurata. Aggiungi SMTP_HOST, SMTP_USER e SMTP_PASS nel file .env")
+    html = build_email_conferma(
+        paziente_nome="Test Utente",
+        medico_nome="Dott. Test",
+        orario="01/01/2026 09:00",
+        stanza="Stanza Test",
+    )
+    ok = send_email(cfg["user"], "Test configurazione email — Clinica Pro", html)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Invio fallito. Controlla le credenziali SMTP nel file .env")
+    return {"message": f"Email di test inviata a {cfg['user']}"}
+
+
+@app.post("/email/promemoria-domani")
+def invia_promemoria_domani_manuale(
+    current_user: models.User = Depends(require_admin),
+):
+    """Trigger manuale del job promemoria (utile se lo scheduler non è attivo)."""
+    cfg = get_email_config()
+    if not cfg["enabled"]:
+        raise HTTPException(status_code=400, detail="Email non configurata nel file .env")
+    _job_promemoria_domani()
+    return {"message": "Promemoria inviati per gli appuntamenti di domani"}
 
 
 # --- DASHBOARD ---
@@ -334,9 +427,42 @@ def leggi_turni(
     return db.query(models.Turno).offset(skip).limit(limit).all()
 
 
+def _invia_email_conferma_bg(turno_id: int) -> None:
+    """Background task: invia email di conferma al paziente."""
+    db = SessionLocal()
+    try:
+        t = (
+            db.query(models.Turno)
+            .options(
+                joinedload(models.Turno.paziente_assegnato),
+                joinedload(models.Turno.medico_assegnato),
+            )
+            .filter(models.Turno.id == turno_id)
+            .first()
+        )
+        if not t:
+            return
+        paz = t.paziente_assegnato
+        med = t.medico_assegnato
+        if paz and paz.email and med:
+            orario_fmt = datetime.fromisoformat(t.orario).strftime("%d/%m/%Y %H:%M")
+            html = build_email_conferma(
+                paziente_nome=f"{paz.nome} {paz.cognome}",
+                medico_nome=f"Dott. {med.nome} {med.cognome}",
+                orario=orario_fmt,
+                stanza=t.stanza,
+            )
+            send_email(paz.email, "Conferma prenotazione appuntamento", html)
+    except Exception as exc:
+        print(f"[EMAIL] Errore conferma turno {turno_id}: {exc}")
+    finally:
+        db.close()
+
+
 @app.post("/turni/", response_model=schemas.TurnoResponse)
 def crea_turno(
     turno: schemas.TurnoCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -371,6 +497,10 @@ def crea_turno(
     db.add(nuovo_turno)
     db.commit()
     db.refresh(nuovo_turno)
+
+    # Email di conferma in background (non blocca la risposta)
+    background_tasks.add_task(_invia_email_conferma_bg, nuovo_turno.id)
+
     return nuovo_turno
 
 
@@ -386,6 +516,29 @@ def elimina_turno(
     db.delete(db_turno)
     db.commit()
     return {"message": "Turno eliminato"}
+
+
+@app.post("/turni/{turno_id}/email")
+def invia_email_turno(
+    turno_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    cfg = get_email_config()
+    if not cfg["enabled"]:
+        raise HTTPException(status_code=400, detail="Email non configurata nel file .env")
+    t = db.query(models.Turno).options(
+        joinedload(models.Turno.paziente_assegnato),
+        joinedload(models.Turno.medico_assegnato),
+    ).filter(models.Turno.id == turno_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Turno non trovato")
+    paz = t.paziente_assegnato
+    if not paz or not paz.email:
+        raise HTTPException(status_code=400, detail="Il paziente non ha un indirizzo email registrato")
+    background_tasks.add_task(_invia_email_conferma_bg, turno_id)
+    return {"message": f"Email di promemoria inviata a {paz.email}"}
 
 
 @app.patch("/turni/{turno_id}/stato", response_model=schemas.TurnoResponse)
