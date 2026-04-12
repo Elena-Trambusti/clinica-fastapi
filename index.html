@@ -848,6 +848,73 @@
             font-weight: 500;
         }
 
+        /* ── SALA D'ATTESA DIGITALE ── */
+        .sala-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: .75rem;
+            margin-bottom: 1.25rem;
+        }
+        .sala-kpi {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: .75rem;
+            padding: 1rem;
+            text-align: center;
+        }
+        .sala-kpi .kpi-num  { font-size: 2rem; font-weight: 800; line-height: 1; }
+        .sala-kpi .kpi-lbl  { font-size: .72rem; color: #6c757d; margin-top: .25rem; }
+        .sala-kpi.kpi-attesa   { border-top: 3px solid #f59e0b; }
+        .sala-kpi.kpi-medico   { border-top: 3px solid #10b981; }
+        .sala-kpi.kpi-completati { border-top: 3px solid #6366f1; }
+        .sala-kpi.kpi-media    { border-top: 3px solid #0ea5e9; }
+        .coda-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .coda-card {
+            background: #fff;
+            border: 1.5px solid #e5e7eb;
+            border-radius: .9rem;
+            padding: 1.1rem 1.2rem;
+            position: relative;
+            transition: box-shadow .2s;
+        }
+        .coda-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+        .coda-card.stato-con_medico {
+            border-color: #10b981;
+            background: linear-gradient(135deg, #f0fdf4, #fff);
+        }
+        .coda-card.stato-arrivato  { border-color: #f59e0b; }
+        .coda-card .coda-pos {
+            position: absolute;
+            top: -10px;
+            left: 14px;
+            background: #4f46e5;
+            color: #fff;
+            font-weight: 800;
+            font-size: .78rem;
+            padding: .1rem .55rem;
+            border-radius: .35rem;
+        }
+        .coda-paziente { font-weight: 700; font-size: 1.05rem; margin-top: .35rem; }
+        .coda-medico   { font-size: .8rem; color: #6c757d; margin-bottom: .5rem; }
+        .timer-attesa {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-size: .8rem;
+            font-weight: 700;
+            padding: .2rem .65rem;
+            border-radius: .4rem;
+        }
+        .timer-ok     { background: #d1fae5; color: #065f46; }
+        .timer-warn   { background: #fef3c7; color: #92400e; }
+        .timer-alert  { background: #fee2e2; color: #b91c1c; }
+        .timer-medico { background: #d1fae5; color: #065f46; }
+        .sala-vuota { text-align: center; padding: 3rem 1rem; color: #9ca3af; }
+
         /* ── LISTA D'ATTESA ── */
         .priorita-badge {
             display: inline-flex;
@@ -1174,6 +1241,12 @@
                 <button class="nav-link" id="tab-pazienti" data-bs-toggle="tab"
                         data-bs-target="#pane-pazienti" type="button">
                     👤 Pazienti
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-sala" data-bs-toggle="tab"
+                        data-bs-target="#pane-sala" type="button">
+                    🏥 Sala d'Attesa
                 </button>
             </li>
             <li class="nav-item">
@@ -1533,6 +1606,48 @@
                     </thead>
                     <tbody id="tabella-pazienti"></tbody>
                 </table>
+                </div>
+            </div>
+
+            <!-- ════ SALA D'ATTESA DIGITALE ════ -->
+            <div class="tab-pane fade" id="pane-sala">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-primary mb-0">🏥 Sala d'Attesa Digitale</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="sala-last-update" class="text-muted small"></span>
+                        <button class="btn btn-outline-primary btn-sm" onclick="caricaSalaAttesa()">
+                            🔄 Aggiorna
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dashboard KPI -->
+                <div class="sala-dashboard">
+                    <div class="sala-kpi kpi-attesa">
+                        <div class="kpi-num text-warning" id="kpi-in-attesa">0</div>
+                        <div class="kpi-lbl">In Attesa</div>
+                    </div>
+                    <div class="sala-kpi kpi-medico">
+                        <div class="kpi-num text-success" id="kpi-con-medico">0</div>
+                        <div class="kpi-lbl">Con il Medico</div>
+                    </div>
+                    <div class="sala-kpi kpi-completati">
+                        <div class="kpi-num text-primary" id="kpi-completati-oggi">0</div>
+                        <div class="kpi-lbl">Completati Oggi</div>
+                    </div>
+                    <div class="sala-kpi kpi-media">
+                        <div class="kpi-num text-info" id="kpi-media-attesa">—</div>
+                        <div class="kpi-lbl">Media Attesa (min)</div>
+                    </div>
+                </div>
+
+                <!-- Coda live -->
+                <div id="sala-coda" class="coda-grid">
+                    <div class="sala-vuota w-100">
+                        <div style="font-size:3rem">🏥</div>
+                        <div class="mt-2 fw-semibold">Nessun paziente in sala d'attesa</div>
+                        <div class="small">Usa il pulsante "Check-in" nella sezione Appuntamenti</div>
+                    </div>
                 </div>
             </div>
 

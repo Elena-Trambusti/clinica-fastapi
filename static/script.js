@@ -408,6 +408,11 @@ function _renderTabellaTurni(lista) {
         const nomePaz    = _pazienteMap[t.paziente_id]?.nome ?? `ID ${t.paziente_id}`;
         const tr = document.createElement('tr');
         const canDeleteTurno = _userRole !== 'medico';
+        const canCheckin = (t.stato === 'prenotato' || t.stato === 'confermato');
+        const btnCheckin = canCheckin
+            ? `<button class="btn btn-warning btn-sm" title="Paziente arrivato — Check-in"
+                   onclick="checkInTurno(${t.id})">🏥 Check-in</button>`
+            : '';
         tr.innerHTML = `
             <td>${escapeHtml(formatOrario(t.orario))}</td>
             <td>${escapeHtml(t.stanza)}</td>
@@ -415,6 +420,7 @@ function _renderTabellaTurni(lista) {
             <td>${escapeHtml(nomePaz)}</td>
             <td>${_buildStatoSelect(t.id, t.stato)}</td>
             <td class="d-flex gap-1 flex-wrap">
+                ${btnCheckin}
                 <button class="btn btn-outline-primary btn-sm" title="Invia email promemoria al paziente"
                     onclick="inviaEmailTurno(${t.id})">📧</button>
                 ${canDeleteTurno ? `<button class="btn btn-outline-danger btn-sm"
@@ -1787,6 +1793,212 @@ async function inviaEmailTurno(id) {
         mostraNotifica(err.detail || 'Impossibile inviare email (controlla la configurazione SMTP)', false);
     }
 }
+
+// ═══════════════════════════════════════════════════════
+//  SALA D'ATTESA DIGITALE
+// ═══════════════════════════════════════════════════════
+
+let _salaInterval = null;
+let _salaDati     = [];
+
+async function checkInTurno(id) {
+    const res = await fetch(`/turni/${id}/checkin`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        // Aggiorna lo stato in-memory nella tabella turni
+        const idx = _allTurni.findIndex(t => t.id === id);
+        if (idx !== -1) {
+            _allTurni[idx].stato = 'arrivato';
+            _allTurni[idx].orario_arrivo = new Date().toISOString();
+        }
+        filtraTurni();
+        mostraNotifica('Check-in effettuato. Paziente in sala d\'attesa.');
+        // Ricarica la sala se il tab è visibile
+        if (document.getElementById('pane-sala')?.classList.contains('active')) {
+            caricaSalaAttesa();
+        }
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore durante il check-in.', false);
+    }
+}
+
+async function caricaSalaAttesa() {
+    const res = await fetch('/sala-attesa/oggi', { headers: authHeaders() });
+    if (!res.ok) return;
+    _salaDati = await res.json();
+
+    // KPI contatori
+    const nAttesa  = _salaDati.filter(e => e.stato === 'arrivato').length;
+    const nMedico  = _salaDati.filter(e => e.stato === 'con_medico').length;
+    document.getElementById('kpi-in-attesa').textContent  = nAttesa;
+    document.getElementById('kpi-con-medico').textContent = nMedico;
+
+    // Completati oggi: prendo dai turni
+    const oggi = new Date().toISOString().slice(0, 10);
+    const completatiOggi = _allTurni.filter(t => t.stato === 'completato' && (t.orario || '').startsWith(oggi)).length;
+    document.getElementById('kpi-completati-oggi').textContent = completatiOggi;
+
+    // Media attesa (pazienti arrivati, calcolata da orario_arrivo)
+    const tempi = _salaDati
+        .filter(e => e.orario_arrivo)
+        .map(e => Math.floor((Date.now() - new Date(e.orario_arrivo).getTime()) / 60000));
+    const media = tempi.length > 0 ? Math.round(tempi.reduce((a, b) => a + b, 0) / tempi.length) : null;
+    document.getElementById('kpi-media-attesa').textContent = media !== null ? media : '—';
+
+    // Last update
+    const lu = document.getElementById('sala-last-update');
+    if (lu) lu.textContent = `Aggiornato alle ${new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+
+    renderCoda();
+}
+
+function renderCoda() {
+    const container = document.getElementById('sala-coda');
+    if (!container) return;
+
+    if (_salaDati.length === 0) {
+        container.innerHTML = `
+            <div class="sala-vuota w-100">
+                <div style="font-size:3rem">🏥</div>
+                <div class="mt-2 fw-semibold">Sala d'attesa vuota</div>
+                <div class="small mt-1">Nessun paziente presente in questo momento</div>
+            </div>`;
+        return;
+    }
+
+    // Prima i "arrivato" (in attesa), poi "con_medico"
+    const ordinati = [
+        ..._salaDati.filter(e => e.stato === 'arrivato'),
+        ..._salaDati.filter(e => e.stato === 'con_medico'),
+    ];
+
+    let posizione = 0;
+    container.innerHTML = ordinati.map(e => {
+        const statoMedico = e.stato === 'con_medico';
+        posizione++;
+
+        // Timer attesa
+        const mins = e.orario_arrivo
+            ? Math.floor((Date.now() - new Date(e.orario_arrivo).getTime()) / 60000)
+            : 0;
+        let timerClass, timerLabel;
+        if (statoMedico) {
+            timerClass = 'timer-medico'; timerLabel = '🟢 Con il medico';
+        } else if (mins < 20) {
+            timerClass = 'timer-ok';    timerLabel = `⏱ ${mins} min`;
+        } else if (mins < 40) {
+            timerClass = 'timer-warn';  timerLabel = `⚠️ ${mins} min`;
+        } else {
+            timerClass = 'timer-alert'; timerLabel = `🔴 ${mins} min`;
+        }
+
+        const btnChiama = e.stato === 'arrivato'
+            ? `<button class="btn btn-success btn-sm fw-semibold"
+                       onclick="aggiornaSalaTurno(${e.turno_id},'con_medico')">
+                   👨‍⚕️ Chiama
+               </button>`
+            : `<button class="btn btn-outline-secondary btn-sm"
+                       onclick="aggiornaSalaTurno(${e.turno_id},'arrivato')">
+                   ↩ Rimetti in attesa
+               </button>`;
+
+        const btnCompleta = `<button class="btn btn-primary btn-sm fw-semibold"
+                                     onclick="aggiornaSalaTurno(${e.turno_id},'completato')">
+                                 ✅ Completa
+                             </button>`;
+
+        const orarioApp = e.orario_appuntamento ? e.orario_appuntamento.substring(11, 16) : '—';
+
+        return `
+        <div class="coda-card stato-${e.stato}" data-turno-id="${e.turno_id}">
+            <span class="coda-pos">${posizione}</span>
+            <div class="d-flex justify-content-between align-items-start mt-1">
+                <div>
+                    <div class="coda-paziente">${escapeHtml(e.cognome_paziente)} ${escapeHtml(e.nome_paziente)}</div>
+                    <div class="coda-medico">Dott. ${escapeHtml(e.nome_medico)} · Stanza ${escapeHtml(e.stanza)}</div>
+                </div>
+                <span class="badge rounded-pill ${statoMedico ? 'bg-success' : 'bg-warning text-dark'}" style="font-size:.68rem">
+                    ${statoMedico ? 'Con medico' : 'In attesa'}
+                </span>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="timer-attesa ${timerClass}" data-arrivo="${e.orario_arrivo}">${timerLabel}</span>
+                <span class="text-muted small">· App. ${orarioApp}</span>
+            </div>
+            <div class="d-flex gap-2">
+                ${btnChiama}
+                ${btnCompleta}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function aggiornaSalaTurno(turnoId, nuovoStato) {
+    const res = await fetch(`/turni/${turnoId}/stato`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stato: nuovoStato }),
+    });
+    if (res.ok) {
+        if (nuovoStato === 'completato') {
+            _salaDati = _salaDati.filter(e => e.turno_id !== turnoId);
+            // Aggiorna KPI completati
+            const kpiEl = document.getElementById('kpi-completati-oggi');
+            if (kpiEl) kpiEl.textContent = parseInt(kpiEl.textContent || '0') + 1;
+            mostraNotifica('Visita completata.');
+        } else {
+            const idx = _salaDati.findIndex(e => e.turno_id === turnoId);
+            if (idx !== -1) _salaDati[idx].stato = nuovoStato;
+        }
+        // Aggiorna anche _allTurni
+        const tIdx = _allTurni.findIndex(t => t.id === turnoId);
+        if (tIdx !== -1) _allTurni[tIdx].stato = nuovoStato;
+
+        renderCoda();
+        // Aggiorna KPI
+        document.getElementById('kpi-in-attesa').textContent  = _salaDati.filter(e => e.stato === 'arrivato').length;
+        document.getElementById('kpi-con-medico').textContent = _salaDati.filter(e => e.stato === 'con_medico').length;
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore aggiornamento stato.', false);
+    }
+}
+
+// Aggiorna i timer ogni minuto senza fare fetch (solo re-render)
+function _avviaSalaTimer() {
+    if (_salaInterval) clearInterval(_salaInterval);
+    _salaInterval = setInterval(() => {
+        // aggiorna solo i timer nelle card già renderizzate (DOM update leggero)
+        document.querySelectorAll('.timer-attesa[data-arrivo]').forEach(el => {
+            const arrivo = el.dataset.arrivo;
+            if (!arrivo) return;
+            const mins = Math.floor((Date.now() - new Date(arrivo).getTime()) / 60000);
+            let cls, lbl;
+            if (mins < 20) { cls = 'timer-ok';   lbl = `⏱ ${mins} min`; }
+            else if (mins < 40) { cls = 'timer-warn'; lbl = `⚠️ ${mins} min`; }
+            else { cls = 'timer-alert'; lbl = `🔴 ${mins} min`; }
+            el.className = `timer-attesa ${cls}`;
+            el.textContent = lbl;
+        });
+    }, 60000);
+}
+
+// Listener tab sala d'attesa
+document.addEventListener('DOMContentLoaded', () => {
+    const tabSala = document.getElementById('tab-sala');
+    if (tabSala) {
+        tabSala.addEventListener('shown.bs.tab', () => {
+            caricaSalaAttesa();
+            _avviaSalaTimer();
+        });
+        tabSala.addEventListener('hidden.bs.tab', () => {
+            if (_salaInterval) { clearInterval(_salaInterval); _salaInterval = null; }
+        });
+    }
+});
 
 // ═══════════════════════════════════════════════════════
 //  LISTA D'ATTESA INTELLIGENTE

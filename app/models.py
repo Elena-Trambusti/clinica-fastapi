@@ -62,6 +62,7 @@ class Turno(Base):
     medico_id = Column(Integer, ForeignKey("medici.id"), nullable=False)
     paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
     stato = Column(String, default="prenotato", server_default="prenotato")
+    orario_arrivo = Column(String, nullable=True)   # timestamp ISO check-in fisico
 
     medico_assegnato = relationship("Medico", back_populates="turni")
     paziente_assegnato = relationship("Paziente", back_populates="turni")

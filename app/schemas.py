@@ -20,7 +20,7 @@ class MedicoResponse(MedicoCreate):
 
 # --- TURNI ---
 
-STATI_VALIDI = {"prenotato", "confermato", "completato", "no_show"}
+STATI_VALIDI = {"prenotato", "confermato", "arrivato", "con_medico", "completato", "no_show"}
 
 
 class TurnoCreate(BaseModel):
@@ -33,12 +33,26 @@ class TurnoCreate(BaseModel):
 
 class TurnoResponse(TurnoCreate):
     id: int
+    orario_arrivo: str | None = None
 
     model_config = {"from_attributes": True}
 
 
 class TurnoStatoUpdate(BaseModel):
     stato: str
+
+
+class SalaAttesaEntry(BaseModel):
+    turno_id: int
+    paziente_id: int
+    nome_paziente: str
+    cognome_paziente: str
+    medico_id: int
+    nome_medico: str
+    orario_appuntamento: str
+    orario_arrivo: str
+    stanza: str
+    stato: str   # arrivato | con_medico
 
 
 RUOLI_VALIDI = {"admin", "medico", "segreteria"}

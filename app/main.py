@@ -33,6 +33,7 @@ from sqlalchemy import text as _sql_text
 _migrations = [
     "ALTER TABLE turni ADD COLUMN stato VARCHAR DEFAULT 'prenotato'",
     "ALTER TABLE users ADD COLUMN ruolo VARCHAR DEFAULT 'admin'",
+    "ALTER TABLE turni ADD COLUMN orario_arrivo VARCHAR",
 ]
 for _m in _migrations:
     try:
@@ -970,6 +971,63 @@ def _invia_notifica_attesa_bg(entry_id: int, paz_email: str, paz_nome: str, med_
     body = build_email_disponibilita(paz_nome, med_nome)
     ok = send_email(paz_email, "Posto Disponibile — Clinica Aziendale", body)
     print(f"[ATTESA] Notifica a {paz_email}: {'OK' if ok else 'SKIP (email non configurata)'}")
+
+
+# --- SALA D'ATTESA DIGITALE ---
+
+@app.post("/turni/{turno_id}/checkin", response_model=schemas.TurnoResponse)
+def checkin_turno(
+    turno_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Segna il paziente come arrivato fisicamente in clinica."""
+    turno = db.query(models.Turno).filter(models.Turno.id == turno_id).first()
+    if not turno:
+        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    if turno.stato not in ("prenotato", "confermato"):
+        raise HTTPException(status_code=400, detail=f"Impossibile fare check-in: stato attuale '{turno.stato}'")
+
+    turno.stato = "arrivato"
+    turno.orario_arrivo = datetime.now().isoformat(timespec="seconds")
+    db.commit()
+    db.refresh(turno)
+    return turno
+
+
+@app.get("/sala-attesa/oggi", response_model=list[schemas.SalaAttesaEntry])
+def get_sala_attesa_oggi(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Restituisce la coda attuale: turni di oggi con stato arrivato o con_medico."""
+    oggi = date.today().isoformat()
+    turni = (
+        db.query(models.Turno)
+        .filter(
+            models.Turno.orario.startswith(oggi),
+            models.Turno.stato.in_(["arrivato", "con_medico"]),
+        )
+        .order_by(models.Turno.orario_arrivo)
+        .all()
+    )
+    risultati = []
+    for t in turni:
+        paz = t.paziente_assegnato
+        med = t.medico_assegnato
+        risultati.append(schemas.SalaAttesaEntry(
+            turno_id=t.id,
+            paziente_id=t.paziente_id,
+            nome_paziente=paz.nome if paz else "",
+            cognome_paziente=paz.cognome if paz else "",
+            medico_id=t.medico_id,
+            nome_medico=f"{med.nome} {med.cognome}" if med else "",
+            orario_appuntamento=t.orario,
+            orario_arrivo=t.orario_arrivo or "",
+            stanza=t.stanza,
+            stato=t.stato,
+        ))
+    return risultati
 
 
 # --- CALENDARIO ---
