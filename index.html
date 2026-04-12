@@ -350,10 +350,10 @@
             #ricerca-globale:focus { width: 220px; }
         }
 
-        /* ── APP: tablet landscape (768–991px) ── */
+        /* ── APP: tablet landscape (768–991px) — sotto la sidebar ── */
         @media (max-width: 991px) {
             .container-fluid { padding-left: 1rem !important; padding-right: 1rem !important; }
-            .tab-content-wrapper { padding: 1.25rem 1rem; }
+            .tab-content-wrapper { padding: 1.25rem 1rem !important; }
             #calendario-clinica { height: 560px; }
             .chart-wrapper    { height: 210px; }
             .chart-wrapper-sm { height: 175px; }
@@ -383,6 +383,102 @@
             .nav-tabs .nav-link { padding: .6rem .65rem; font-size: .78rem; }
             .kpi-icon { font-size: 1.4rem; }
             .medico-attivo-card { min-height: auto; }
+        }
+
+        /* ══════════════════════════════════════════
+           SIDEBAR LAYOUT (desktop ≥ 992px)
+           Il layout orizzontale a tab diventa
+           una sidebar verticale + area contenuto.
+        ══════════════════════════════════════════ */
+
+        @media (min-width: 992px) {
+            /* Container diventa flex row */
+            #sezione-app > .container-fluid {
+                display: flex !important;
+                align-items: stretch !important;
+                padding: 0 !important;
+            }
+
+            /* ── Sidebar sinistra ── */
+            #mainTabs {
+                flex: 0 0 215px !important;
+                flex-direction: column !important;
+                flex-wrap: nowrap !important;
+                border-bottom: none !important;
+                border-right: 1px solid #e9ecef;
+                background: #fff;
+                padding: 1.5rem 0 2rem;
+                min-height: calc(100vh - 60px);
+                overflow-y: auto;
+                overflow-x: hidden;
+                scrollbar-width: none;
+                box-shadow: 2px 0 8px rgba(0,0,0,.04);
+            }
+            #mainTabs::-webkit-scrollbar { display: none; }
+
+            /* Etichetta "MENU" in cima alla sidebar */
+            #mainTabs::before {
+                content: 'MENU';
+                display: block;
+                padding: 0 1.4rem .85rem;
+                font-size: .64rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .12em;
+                color: #adb5bd;
+            }
+
+            #mainTabs .nav-item { width: 100%; }
+
+            /* Link della sidebar */
+            #mainTabs .nav-link {
+                border-bottom: none !important;
+                border-left: 3px solid transparent !important;
+                border-radius: 0 !important;
+                text-align: left !important;
+                padding: .9rem 1.4rem !important;
+                font-size: .9rem;
+                white-space: nowrap;
+                transition: background .12s, border-color .12s;
+            }
+            #mainTabs .nav-link:not(.active):hover {
+                background: #f8f9fa;
+                border-left-color: #dee2e6 !important;
+                color: #212529;
+            }
+            #mainTabs .nav-link.active {
+                border-left-color: #0d6efd !important;
+                border-bottom-color: transparent !important;
+                background: #eef2ff !important;
+                color: #0d6efd !important;
+                font-weight: 600;
+            }
+            .nav-tabs { border-bottom: none !important; }
+
+            /* ── Area contenuto destra ── */
+            #mainTabContent {
+                flex: 1;
+                min-width: 0;
+                padding: 1.25rem 1.5rem;
+                background: #f0f4f8;
+                min-height: calc(100vh - 60px);
+            }
+
+            /* Il wrapper del tab diventa un card floating */
+            .tab-content-wrapper {
+                background: transparent !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+
+            /* Ogni pane è una card bianca su sfondo grigio */
+            #mainTabContent .tab-pane {
+                background: #fff;
+                border-radius: .75rem;
+                box-shadow: 0 2px 14px rgba(0,0,0,.07);
+                padding: 1.5rem;
+            }
         }
 
         .fc-event { cursor: pointer; font-size: .82rem; }
