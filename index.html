@@ -253,21 +253,69 @@
             to   { opacity: 1; transform: translateX(0); }
         }
 
-        /* Responsive: su mobile impila verticalmente */
-        @media (max-width: 768px) {
-            #sezione-login { flex-direction: column; }
-            .login-left  { width: 100%; padding: 2.5rem 1.5rem; }
-            .login-right { width: 100%; padding: 2rem 1rem; }
-            .login-brand-title { font-size: 1.9rem; }
-            .med-cross-bg { display: none; }
+        /* ── RESPONSIVE LOGIN ── */
+
+        /* Laptop medio (< 1200px) */
+        @media (max-width: 1199px) {
+            .login-left  { padding: 2.5rem 2.5rem; }
+            .login-brand-title { font-size: 2.1rem; }
+            .login-feature-desc { font-size: .73rem; }
         }
+
+        /* Tablet landscape (< 992px): pannelli affiancati ma compatti */
+        @media (max-width: 991px) {
+            .login-left  { width: 50%; padding: 2rem 2rem; }
+            .login-right { width: 50%; padding: 2rem 1.25rem; }
+            .login-brand-title { font-size: 1.75rem; }
+            .login-feature-desc { display: none; }
+            .login-tagline { font-size: .85rem; margin-bottom: 1.5rem; }
+        }
+
+        /* Tablet portrait / mobile grande (< 768px): impila verticalmente */
+        @media (max-width: 767px) {
+            #sezione-login { flex-direction: column; overflow-y: auto; }
+            .login-left  { width: 100%; padding: 2rem 1.5rem; }
+            .login-right { width: 100%; padding: 1.5rem 1rem; min-height: auto; }
+            .login-brand-title { font-size: 1.65rem; margin-bottom: .5rem; }
+            .login-tagline { margin-bottom: 1.25rem; font-size: .82rem; }
+            .login-feature { margin-bottom: .75rem; }
+            .login-feature-desc { display: none; }
+            .login-feature-icon { width: 30px; height: 30px; font-size: .9rem; }
+            .med-cross-bg { display: none; }
+            .login-card-inner { padding: 1.75rem 1.25rem; }
+        }
+
+        /* Mobile piccolo (< 480px): login ancora più compatto */
+        @media (max-width: 479px) {
+            .login-left  { padding: 1.5rem 1.25rem; }
+            .login-feature { display: none; }
+            .login-tagline { display: none; }
+            .login-brand-title { font-size: 1.5rem; }
+            .login-badge { font-size: .72rem; padding: .25rem .75rem; }
+        }
+
+        /* ── APP SECTION RESPONSIVE ── */
 
         .navbar-clinica {
             background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
         }
+        /* Navbar: titolo troncato su mobile */
+        @media (max-width: 576px) {
+            .navbar-brand-text { display: none; }
+            .navbar-clinica { padding: .5rem 1rem; }
+        }
 
         .stat-card { transition: transform .15s; cursor: default; }
         .stat-card:hover { transform: translateY(-3px); }
+
+        /* Nav tabs: scrollabili su schermi piccoli */
+        #mainTabs {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        #mainTabs::-webkit-scrollbar { display: none; }
 
         .nav-tabs .nav-link {
             font-weight: 500;
@@ -275,6 +323,7 @@
             border: none;
             border-bottom: 3px solid transparent;
             padding: .75rem 1.25rem;
+            white-space: nowrap;
         }
         .nav-tabs .nav-link.active {
             color: #0d6efd;
@@ -282,6 +331,13 @@
             background: transparent;
         }
         .nav-tabs { border-bottom: 2px solid #dee2e6; }
+
+        @media (max-width: 576px) {
+            .nav-tabs .nav-link { padding: .6rem .8rem; font-size: .82rem; }
+            .tab-content-wrapper { padding: 1rem .75rem; }
+            #calendario-clinica { height: 480px; }
+            .form-sezione { padding: 1rem; }
+        }
 
         .tab-content-wrapper {
             background: #fff;
@@ -458,7 +514,8 @@
         <div class="d-flex align-items-center gap-3">
             <img src="/static/logo.png" alt="Logo" width="36" class="rounded-circle"
                  onerror="this.style.display='none'">
-            <span class="navbar-brand mb-0 fw-bold fs-5">Gestionale Clinica Aziendale</span>
+            <span class="navbar-brand mb-0 fw-bold fs-5 navbar-brand-text">Gestionale Clinica Aziendale</span>
+            <span class="navbar-brand mb-0 fw-bold d-none" id="navbar-title-short">Clinica Pro</span>
         </div>
         <button class="btn btn-outline-light btn-sm fw-semibold" onclick="logout()">Esci</button>
     </nav>
@@ -467,36 +524,36 @@
 
         <!-- Stat cards -->
         <div class="row g-3 mb-3">
-            <div class="col-sm-4">
+            <div class="col-6 col-md-4">
                 <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#0d6efd,#6ea8fe)">
                     <div class="card-body d-flex justify-content-between align-items-center py-3">
                         <div>
                             <div class="small opacity-75 fw-semibold text-uppercase">Medici</div>
                             <div class="fs-2 fw-bold" id="stat-medici">—</div>
                         </div>
-                        <span style="font-size:2rem">👨‍⚕️</span>
+                        <span style="font-size:1.75rem">👨‍⚕️</span>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-4">
+            <div class="col-6 col-md-4">
                 <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#198754,#75b798)">
                     <div class="card-body d-flex justify-content-between align-items-center py-3">
                         <div>
                             <div class="small opacity-75 fw-semibold text-uppercase">Pazienti</div>
                             <div class="fs-2 fw-bold" id="stat-pazienti">—</div>
                         </div>
-                        <span style="font-size:2rem">👤</span>
+                        <span style="font-size:1.75rem">👤</span>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-4">
+            <div class="col-12 col-md-4">
                 <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#6f42c1,#a98eda)">
                     <div class="card-body d-flex justify-content-between align-items-center py-3">
                         <div>
                             <div class="small opacity-75 fw-semibold text-uppercase">Appuntamenti</div>
                             <div class="fs-2 fw-bold" id="stat-turni">—</div>
                         </div>
-                        <span style="font-size:2rem">📅</span>
+                        <span style="font-size:1.75rem">📅</span>
                     </div>
                 </div>
             </div>
@@ -584,6 +641,7 @@
                     </form>
                 </div>
 
+                <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle">
                     <thead>
                         <tr>
@@ -596,6 +654,7 @@
                     </thead>
                     <tbody id="tabella-turni"></tbody>
                 </table>
+                </div>
             </div>
 
             <!-- ════ MEDICI ════ -->
@@ -630,6 +689,7 @@
                            placeholder="Cerca per nome o specializzazione..." onkeyup="filtraMedici()">
                 </div>
 
+                <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle">
                     <thead>
                         <tr>
@@ -641,6 +701,7 @@
                     </thead>
                     <tbody id="tabella-medici"></tbody>
                 </table>
+                </div>
             </div>
 
             <!-- ════ PAZIENTI ════ -->
@@ -686,6 +747,7 @@
                            placeholder="Cerca per nome o codice fiscale..." onkeyup="filtraPazienti()">
                 </div>
 
+                <div class="table-responsive">
                 <table class="table table-hover table-bordered align-middle">
                     <thead>
                         <tr>
@@ -698,6 +760,7 @@
                     </thead>
                     <tbody id="tabella-pazienti"></tbody>
                 </table>
+                </div>
             </div>
 
         </div><!-- /tab-content -->
