@@ -36,6 +36,23 @@ function mostraNotifica(messaggio, successo = true) {
     new bootstrap.Toast(el, { delay: 3500 }).show();
 }
 
+/** Converte la risposta JSON di errore FastAPI (detail stringa o array) in testo leggibile. */
+function formatApiError(err) {
+    if (!err || typeof err !== 'object') return 'Richiesta non valida.';
+    const d = err.detail;
+    if (typeof d === 'string') return d;
+    if (Array.isArray(d)) {
+        return d.map((e) => {
+            if (typeof e === 'string') return e;
+            const loc = Array.isArray(e.loc) ? e.loc.filter(Boolean).join(' › ') : '';
+            const msg = e.msg || e.message || '';
+            return loc ? `${loc}: ${msg}` : msg;
+        }).filter(Boolean).join(' ');
+    }
+    if (d != null && typeof d === 'object') return JSON.stringify(d);
+    return 'Errore del server.';
+}
+
 // ═══════════════════════════════════════════════════════
 //  AUTENTICAZIONE
 // ═══════════════════════════════════════════════════════
@@ -411,7 +428,7 @@ function _renderTabellaTurni(lista) {
         const canCheckin = (t.stato === 'prenotato' || t.stato === 'confermato');
         const btnCheckin = canCheckin
             ? `<button class="btn btn-warning btn-sm" title="Paziente arrivato — Check-in"
-                   onclick="checkInTurno(${t.id})">🏥 Check-in</button>`
+                onclick="checkInTurno(${t.id})">🏥 Check-in</button>`
             : '';
         tr.innerHTML = `
             <td>${escapeHtml(formatOrario(t.orario))}</td>
@@ -959,11 +976,11 @@ async function eliminaTurno(id) {
 async function aggiungiPaziente(e) {
     e.preventDefault();
     const dati = {
-        nome:           document.getElementById('nome-paziente').value,
-        cognome:        document.getElementById('cognome-paziente').value,
-        codice_fiscale: document.getElementById('cf-paziente').value,
-        email:          document.getElementById('email-paziente').value,
-        telefono:       document.getElementById('tel-paziente').value,
+        nome:           document.getElementById('nome-paziente').value.trim(),
+        cognome:        document.getElementById('cognome-paziente').value.trim(),
+        codice_fiscale: document.getElementById('cf-paziente').value.trim(),
+        email:          document.getElementById('email-paziente').value.trim(),
+        telefono:       document.getElementById('tel-paziente').value.trim(),
     };
 
     const res = await fetch('/pazienti', {
@@ -979,7 +996,7 @@ async function aggiungiPaziente(e) {
         caricaDashboard();
     } else {
         const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || 'Errore nella registrazione.', false);
+        mostraNotifica(formatApiError(err), false);
     }
 }
 
@@ -1015,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', () => {
             caricaPazienti();
         } else {
             const err = await res.json().catch(() => ({}));
-            mostraNotifica(err.detail || "Errore.", false);
+            mostraNotifica(formatApiError(err), false);
         }
     };
 });

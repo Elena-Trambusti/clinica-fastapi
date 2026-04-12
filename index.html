@@ -1567,13 +1567,14 @@
                                 <input type="text" id="cognome-paziente" class="form-control" placeholder="Cognome" required>
                             </div>
                             <div class="col-md-4">
-                                <input type="text" id="cf-paziente" class="form-control" placeholder="Codice Fiscale" required>
+                                <input type="text" id="cf-paziente" class="form-control"
+                                       placeholder="Codice fiscale (16 caratteri, anche con spazi)" required maxlength="22">
                             </div>
                             <div class="col-md-6">
                                 <input type="email" id="email-paziente" class="form-control" placeholder="Email" required>
                             </div>
                             <div class="col-md-6">
-                                <input type="text" id="tel-paziente" class="form-control" placeholder="Telefono" required>
+                                <input type="text" id="tel-paziente" class="form-control" placeholder="Telefono (facoltativo)">
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary fw-semibold px-4">

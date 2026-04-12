@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from . import auth, models, schemas
@@ -579,14 +581,20 @@ def crea_paziente(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    existing = db.query(models.Paziente).filter(
-        models.Paziente.codice_fiscale == paziente.codice_fiscale
-    ).first()
+    cf_norm = paziente.codice_fiscale
+    cf_col = func.upper(models.Paziente.codice_fiscale)
+    for sep in (" ", "-", "."):
+        cf_col = func.replace(cf_col, sep, "")
+    existing = db.query(models.Paziente).filter(cf_col == cf_norm).first()
     if existing:
         raise HTTPException(status_code=400, detail="Codice fiscale gia' registrato")
     db_paziente = models.Paziente(**paziente.model_dump())
     db.add(db_paziente)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Codice fiscale gia' registrato")
     db.refresh(db_paziente)
     return db_paziente
 
@@ -604,12 +612,28 @@ def aggiorna_paziente(
     if not db_paziente:
         raise HTTPException(status_code=404, detail="Paziente non trovato")
 
+    cf_norm = paziente_aggiornato.codice_fiscale
+    cf_col = func.upper(models.Paziente.codice_fiscale)
+    for sep in (" ", "-", "."):
+        cf_col = func.replace(cf_col, sep, "")
+    altro = (
+        db.query(models.Paziente)
+        .filter(cf_col == cf_norm, models.Paziente.id != paziente_id)
+        .first()
+    )
+    if altro:
+        raise HTTPException(status_code=400, detail="Codice fiscale gia' registrato")
+
     db_paziente.nome = paziente_aggiornato.nome
     db_paziente.cognome = paziente_aggiornato.cognome
     db_paziente.codice_fiscale = paziente_aggiornato.codice_fiscale
     db_paziente.email = paziente_aggiornato.email
     db_paziente.telefono = paziente_aggiornato.telefono
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Codice fiscale gia' registrato")
     db.refresh(db_paziente)
     return db_paziente
 

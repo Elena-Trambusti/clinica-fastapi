@@ -89,6 +89,7 @@ class Token(BaseModel):
 _CF_REGEX = re.compile(
     r"^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$", re.IGNORECASE
 )
+_CF_LAX = re.compile(r"^[A-Z0-9]{16}$")
 
 
 class PazienteBase(BaseModel):
@@ -96,15 +97,21 @@ class PazienteBase(BaseModel):
     cognome: str
     codice_fiscale: str
     email: EmailStr
-    telefono: str
+    telefono: str = ""
 
     @field_validator("codice_fiscale")
     @classmethod
     def valida_codice_fiscale(cls, v: str) -> str:
-        valore = v.strip().upper()
-        if not _CF_REGEX.match(valore):
-            raise ValueError("Codice fiscale non valido (formato atteso: RSSMRA80A01H501U)")
-        return valore
+        # Rimuove spazi, punti e trattini (spesso digitati per errore)
+        valore = re.sub(r"[\s.\-]+", "", (v or "").strip().upper())
+        if not valore:
+            raise ValueError("Il codice fiscale non puo' essere vuoto")
+        if _CF_REGEX.match(valore) or _CF_LAX.match(valore):
+            return valore
+        raise ValueError(
+            "Codice fiscale non valido: servono 16 caratteri (lettere e numeri), "
+            "esempio RSSMRA80A01H501U"
+        )
 
     @field_validator("nome", "cognome")
     @classmethod
@@ -113,6 +120,11 @@ class PazienteBase(BaseModel):
         if not v:
             raise ValueError("Il campo non puo' essere vuoto")
         return v
+
+    @field_validator("telefono")
+    @classmethod
+    def telefono_strip(cls, v: str) -> str:
+        return (v or "").strip()
 
 
 class PazienteCreate(PazienteBase):
