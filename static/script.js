@@ -261,6 +261,10 @@ let _allMedici   = [];
 let _allPazienti = [];
 let _allTurni    = [];
 
+// Export
+let _turniVisibili       = [];   // turni dopo filtro (usato da esportaTurniPDF)
+let _pazienteCartellaInfo = {};  // dati paziente aperto nella cartella clinica
+
 // Istanze Chart.js (distrutte e ricreate ad ogni refresh dashboard)
 let _charts = {};
 
@@ -336,6 +340,7 @@ async function caricaDati() {
 
 // Rendering separato dei turni — usato anche da filtraTurni()
 function _renderTabellaTurni(lista) {
+    _turniVisibili = lista;       // aggiorna lista per export PDF
     const tbody = document.getElementById('tabella-turni');
     tbody.innerHTML = '';
     lista.forEach(t => {
@@ -1142,13 +1147,210 @@ function _downloadBlob(blob, filename) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  EXPORT PDF  (jsPDF + autoTable)
+// ═══════════════════════════════════════════════════════
+
+function _pdfHeader(doc, titolo, colore = [13, 110, 253], landscape = false) {
+    const w = landscape ? 297 : 210;
+    doc.setFillColor(...colore);
+    doc.rect(0, 0, w, 20, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('Gestionale Clinica Pro', 10, 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.text(titolo, w / 2, 13, { align: 'center' });
+    doc.text(new Date().toLocaleDateString('it-IT'), w - 10, 13, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+}
+
+function _pdfFooter(doc, landscape = false) {
+    const pages = doc.getNumberOfPages();
+    const w     = landscape ? 297 : 210;
+    for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setTextColor(160);
+        doc.text('Documento generato automaticamente — Gestionale Clinica Pro', 10, 203);
+        doc.text(`Pagina ${i} di ${pages}`, w - 10, 203, { align: 'right' });
+    }
+}
+
+// ── PDF Lista Appuntamenti (usa i turni attualmente filtrati) ──
+function esportaTurniPDF() {
+    if (!window.jspdf) { mostraNotifica('Libreria PDF non ancora caricata.', false); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    _pdfHeader(doc, 'Lista Appuntamenti', [13, 110, 253], true);
+
+    const body = _turniVisibili.map(t => [
+        formatOrario(t.orario),
+        t.stanza,
+        `Dott. ${_medicoMap[t.medico_id]?.nome ?? '—'}`,
+        _pazienteMap[t.paziente_id]?.nome ?? '—',
+    ]);
+
+    doc.autoTable({
+        startY: 25,
+        head: [['Data e Ora', 'Stanza', 'Medico', 'Paziente']],
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [13, 110, 253], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 245, 255] },
+        columnStyles: {
+            0: { cellWidth: 48 },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 80 },
+            3: { cellWidth: 80 },
+        },
+        margin: { left: 10, right: 10 },
+    });
+
+    _pdfFooter(doc, true);
+
+    const filtro = document.getElementById('badge-filtri')?.classList.contains('d-none') ? '' : '_filtrato';
+    doc.save(`appuntamenti${filtro}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    mostraNotifica(`PDF generato: ${body.length} appuntamenti.`);
+}
+
+// ── PDF Registro Pazienti (usa pazienti visibili nella tabella) ──
+function esportaPazientiPDF() {
+    if (!window.jspdf) { mostraNotifica('Libreria PDF non ancora caricata.', false); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    _pdfHeader(doc, 'Registro Pazienti', [25, 135, 84]);
+
+    const righeVisibili = Array.from(document.getElementById('tabella-pazienti').rows)
+        .filter(tr => tr.style.display !== 'none');
+
+    const body = righeVisibili.map(tr => {
+        const celle = Array.from(tr.cells);
+        return [celle[0].innerText, celle[1].innerText, celle[2].innerText, celle[3].innerText];
+    });
+
+    doc.autoTable({
+        startY: 25,
+        head: [['Nome', 'Cognome', 'Codice Fiscale', 'Email']],
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [25, 135, 84], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 248, 244] },
+        margin: { left: 10, right: 10 },
+    });
+
+    _pdfFooter(doc);
+    doc.save(`pazienti_${new Date().toISOString().slice(0, 10)}.pdf`);
+    mostraNotifica(`PDF generato: ${body.length} pazienti.`);
+}
+
+// ── PDF Cartella Clinica individuale ──
+async function esportaCartellaPDF() {
+    if (!window.jspdf) { mostraNotifica('Libreria PDF non ancora caricata.', false); return; }
+    if (!_pazienteCartellaId) return;
+
+    const info = _pazienteCartellaInfo;
+    const res  = await fetch(`/pazienti/${_pazienteCartellaId}/visite`, { headers: authHeaders() });
+    if (!res.ok) { mostraNotifica('Errore durante la generazione del PDF.', false); return; }
+    const visite = await res.json();
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    // Header con colore cartella (blu-viola)
+    doc.setFillColor(13, 110, 253);
+    doc.rect(0, 0, 210, 26, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('Cartella Clinica', 10, 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.text('Gestionale Clinica Pro', 10, 22);
+    doc.text(new Date().toLocaleDateString('it-IT'), 200, 22, { align: 'right' });
+
+    // Scheda paziente con bordo
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(13, 110, 253);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(10, 31, 190, 26, 2.5, 2.5, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(`${info.nome} ${info.cognome}`, 15, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    doc.text(`CF: ${info.cf}`, 15, 47);
+    doc.text(`Email: ${info.email}`, 15, 52);
+    doc.text(`Tel: ${info.tel || '—'}`, 115, 47);
+    doc.text(`Visite registrate: ${visite.length}`, 115, 52);
+
+    // Titolo sezione visite
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Storico Visite', 10, 66);
+
+    if (visite.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text('Nessuna visita registrata per questo paziente.', 10, 76);
+    } else {
+        doc.autoTable({
+            startY: 70,
+            head: [['Data', 'Medico', 'Motivo', 'Diagnosi', 'Trattamento']],
+            body: visite.map(v => [
+                new Date(v.data_visita).toLocaleDateString('it-IT'),
+                v.nome_medico || '—',
+                v.motivo      || '—',
+                v.diagnosi    || '—',
+                v.trattamento || '—',
+            ]),
+            theme: 'striped',
+            headStyles: { fillColor: [13, 110, 253], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+            bodyStyles: { fontSize: 8 },
+            alternateRowStyles: { fillColor: [240, 245, 255] },
+            columnStyles: {
+                0: { cellWidth: 22 },
+                1: { cellWidth: 38 },
+                2: { cellWidth: 40 },
+                3: { cellWidth: 48 },
+                4: { cellWidth: 42 },
+            },
+            margin: { left: 10, right: 10 },
+        });
+    }
+
+    // Footer
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setTextColor(160);
+        doc.text('Documento generato automaticamente — Gestionale Clinica Pro', 10, 291);
+        doc.text(`Pagina ${i} di ${pages}`, 200, 291, { align: 'right' });
+    }
+
+    const nomeFile = `cartella_${info.cognome}_${info.nome}_${new Date().toISOString().slice(0, 10)}.pdf`
+        .toLowerCase().replace(/\s+/g, '_');
+    doc.save(nomeFile);
+    mostraNotifica(`PDF cartella generato (${visite.length} visite).`);
+}
+
+// ═══════════════════════════════════════════════════════
 //  CARTELLA CLINICA
 // ═══════════════════════════════════════════════════════
 
 let _pazienteCartellaId = null;
 
 function apriCartellaClinica(id, nome, cognome, cf, email, tel) {
-    _pazienteCartellaId = id;
+    _pazienteCartellaId   = id;
+    _pazienteCartellaInfo = { id, nome, cognome, cf, email, tel };
 
     document.getElementById('cartella-nome-paziente').textContent = `${nome} ${cognome}`;
     document.getElementById('cartella-cf').textContent    = cf;
