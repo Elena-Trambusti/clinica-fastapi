@@ -339,6 +339,24 @@ async function caricaDati() {
 }
 
 // Rendering separato dei turni — usato anche da filtraTurni()
+// Mappa stato → etichetta leggibile
+const _statoLabel = {
+    prenotato:  '🔵 Prenotato',
+    confermato: '🟢 Confermato',
+    completato: '⚪ Completato',
+    no_show:    '🔴 No-show',
+};
+
+function _buildStatoSelect(turnoId, statoCorrente) {
+    const stato = statoCorrente || 'prenotato';
+    const opts = Object.entries(_statoLabel).map(([val, lbl]) =>
+        `<option value="${val}"${val === stato ? ' selected' : ''}>${lbl}</option>`
+    ).join('');
+    return `<select class="stato-select stato-${stato}"
+                title="Clicca per cambiare stato"
+                onchange="aggiornaStatoTurno(${turnoId}, this.value, this)">${opts}</select>`;
+}
+
 function _renderTabellaTurni(lista) {
     _turniVisibili = lista;       // aggiorna lista per export PDF
     const tbody = document.getElementById('tabella-turni');
@@ -352,6 +370,7 @@ function _renderTabellaTurni(lista) {
             <td>${escapeHtml(t.stanza)}</td>
             <td>Dott. ${escapeHtml(nomeMedico)}</td>
             <td>${escapeHtml(nomePaz)}</td>
+            <td>${_buildStatoSelect(t.id, t.stato)}</td>
             <td>
                 <button class="btn btn-outline-danger btn-sm"
                     onclick="eliminaTurno(${t.id})">
@@ -367,6 +386,30 @@ function _renderTabellaTurni(lista) {
         counter.textContent = lista.length === _allTurni.length
             ? `${lista.length} appuntamenti`
             : `${lista.length} di ${_allTurni.length}`;
+    }
+}
+
+async function aggiornaStatoTurno(id, nuovoStato, selectEl) {
+    try {
+        const res = await fetch(`/turni/${id}/stato`, {
+            method: 'PATCH',
+            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stato: nuovoStato }),
+        });
+        if (!res.ok) {
+            mostraNotifica('Errore aggiornamento stato', 'danger');
+            return;
+        }
+        // Aggiorna il colore del select in-place senza ricaricare tutta la tabella
+        if (selectEl) {
+            selectEl.className = `stato-select stato-${nuovoStato}`;
+        }
+        // Aggiorna l'array in memoria per export e filtri
+        const turno = _allTurni.find(t => t.id === id);
+        if (turno) turno.stato = nuovoStato;
+        mostraNotifica(`Stato aggiornato: ${_statoLabel[nuovoStato] || nuovoStato}`, 'success');
+    } catch {
+        mostraNotifica('Errore di rete', 'danger');
     }
 }
 
@@ -978,10 +1021,11 @@ function filtraMedici() {
 }
 
 function filtraTurni() {
-    const da      = document.getElementById('filtro-da')?.value ?? '';
-    const a       = document.getElementById('filtro-a')?.value ?? '';
+    const da       = document.getElementById('filtro-da')?.value ?? '';
+    const a        = document.getElementById('filtro-a')?.value ?? '';
     const medicoId = document.getElementById('filtro-medico')?.value ?? '';
     const pazId    = document.getElementById('filtro-paziente')?.value ?? '';
+    const statoFil = document.getElementById('filtro-stato')?.value ?? '';
     const q        = (document.getElementById('cerca-turno')?.value ?? '').toLowerCase();
 
     let lista = _allTurni;
@@ -990,6 +1034,7 @@ function filtraTurni() {
     if (a)        lista = lista.filter(t => t.orario && t.orario.slice(0, 10) <= a);
     if (medicoId) lista = lista.filter(t => String(t.medico_id) === medicoId);
     if (pazId)    lista = lista.filter(t => String(t.paziente_id) === pazId);
+    if (statoFil) lista = lista.filter(t => (t.stato || 'prenotato') === statoFil);
     if (q) {
         lista = lista.filter(t => {
             const med = (_medicoMap[t.medico_id]?.nome ?? '').toLowerCase();
@@ -1001,7 +1046,7 @@ function filtraTurni() {
     _renderTabellaTurni(lista);
 
     // Aggiorna badge contatore filtri attivi
-    const nFiltri = [da, a, medicoId, pazId, q].filter(Boolean).length;
+    const nFiltri = [da, a, medicoId, pazId, statoFil, q].filter(Boolean).length;
     const badge = document.getElementById('badge-filtri');
     if (badge) {
         if (nFiltri > 0) {
@@ -1014,7 +1059,7 @@ function filtraTurni() {
 }
 
 function resetFiltriTurni() {
-    const ids = ['filtro-da', 'filtro-a', 'filtro-medico', 'filtro-paziente', 'cerca-turno'];
+    const ids = ['filtro-da', 'filtro-a', 'filtro-medico', 'filtro-paziente', 'filtro-stato', 'cerca-turno'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';

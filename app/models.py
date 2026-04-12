@@ -38,6 +38,7 @@ class Turno(Base):
     stanza = Column(String, nullable=False)
     medico_id = Column(Integer, ForeignKey("medici.id"), nullable=False)
     paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
+    stato = Column(String, default="prenotato", server_default="prenotato")
 
     medico_assegnato = relationship("Medico", back_populates="turni")
     paziente_assegnato = relationship("Paziente", back_populates="turni")

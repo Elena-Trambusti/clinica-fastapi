@@ -847,6 +847,33 @@
             color: #6c757d;
             font-weight: 500;
         }
+
+        /* ── STATO APPUNTAMENTO ── */
+        .stato-select {
+            display: inline-block;
+            border: none;
+            border-radius: .45rem;
+            padding: .22rem .55rem;
+            font-size: .72rem;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .4rem center;
+            padding-right: 1.3rem;
+            transition: opacity .15s, box-shadow .15s;
+            letter-spacing: .02em;
+        }
+        .stato-select:hover { opacity: .85; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+        .stato-select:focus { box-shadow: 0 0 0 2px rgba(13,110,253,.25); }
+
+        .stato-prenotato  { background: #dbeafe; color: #1d4ed8; }
+        .stato-confermato { background: #d1fae5; color: #065f46; }
+        .stato-completato { background: #e5e7eb; color: #374151; }
+        .stato-no_show    { background: #fee2e2; color: #b91c1c; }
     </style>
 </head>
 <body>
@@ -1197,6 +1224,16 @@
                                 <option value="">Tutti i pazienti</option>
                             </select>
                         </div>
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                            <label class="form-label">🔵 Stato</label>
+                            <select id="filtro-stato" class="form-select form-select-sm" onchange="filtraTurni()">
+                                <option value="">Tutti gli stati</option>
+                                <option value="prenotato">🔵 Prenotato</option>
+                                <option value="confermato">🟢 Confermato</option>
+                                <option value="completato">⚪ Completato</option>
+                                <option value="no_show">🔴 No-show</option>
+                            </select>
+                        </div>
                         <div class="col-12 col-sm-6 col-md-4 col-lg-1 d-flex align-items-end">
                             <button class="btn btn-outline-secondary btn-sm w-100" onclick="resetFiltriTurni()" title="Rimuovi filtri">
                                 Reset
@@ -1218,6 +1255,7 @@
                             <th>Stanza</th>
                             <th>Medico</th>
                             <th>Paziente</th>
+                            <th style="width:120px">Stato</th>
                             <th style="width:90px">Azioni</th>
                         </tr>
                     </thead>

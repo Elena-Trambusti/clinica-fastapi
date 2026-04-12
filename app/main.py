@@ -20,6 +20,15 @@ load_dotenv()
 
 models.Base.metadata.create_all(bind=engine)
 
+# Migration: aggiunge colonna stato a turni se non esiste (compatibilità DB esistenti)
+from sqlalchemy import text as _sql_text
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_sql_text("ALTER TABLE turni ADD COLUMN stato VARCHAR DEFAULT 'prenotato'"))
+        _conn.commit()
+except Exception:
+    pass  # colonna già presente
+
 app = FastAPI(title="Gestionale Clinica Pro")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -31,7 +40,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -312,6 +321,24 @@ def elimina_turno(
     db.delete(db_turno)
     db.commit()
     return {"message": "Turno eliminato"}
+
+
+@app.patch("/turni/{turno_id}/stato", response_model=schemas.TurnoResponse)
+def aggiorna_stato_turno(
+    turno_id: int,
+    aggiornamento: schemas.TurnoStatoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if aggiornamento.stato not in schemas.STATI_VALIDI:
+        raise HTTPException(status_code=400, detail=f"Stato non valido. Valori ammessi: {', '.join(schemas.STATI_VALIDI)}")
+    db_turno = db.query(models.Turno).filter(models.Turno.id == turno_id).first()
+    if not db_turno:
+        raise HTTPException(status_code=404, detail="Turno non trovato")
+    db_turno.stato = aggiornamento.stato
+    db.commit()
+    db.refresh(db_turno)
+    return db_turno
 
 
 # --- PAZIENTI ---

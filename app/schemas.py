@@ -19,17 +19,25 @@ class MedicoResponse(MedicoCreate):
 
 # --- TURNI ---
 
+STATI_VALIDI = {"prenotato", "confermato", "completato", "no_show"}
+
+
 class TurnoCreate(BaseModel):
     orario: str
     stanza: str
     medico_id: int
     paziente_id: int
+    stato: str = "prenotato"
 
 
 class TurnoResponse(TurnoCreate):
     id: int
 
     model_config = {"from_attributes": True}
+
+
+class TurnoStatoUpdate(BaseModel):
+    stato: str
 
 
 # --- AUTENTICAZIONE ---
