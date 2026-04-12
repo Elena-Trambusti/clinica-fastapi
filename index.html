@@ -565,6 +565,144 @@
         .gs-empty { padding: .9rem 1rem; font-size: .85rem; color: #6c757d; }
 
         /* ══════════════════════════════════════════
+           CENTRO NOTIFICHE
+        ══════════════════════════════════════════ */
+
+        #notifiche-wrap { position: relative; }
+
+        #notifiche-btn {
+            background: rgba(255,255,255,.12);
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 50%;
+            width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+            cursor: pointer;
+            position: relative;
+            transition: background .2s;
+            padding: 0;
+            color: #fff;
+        }
+        #notifiche-btn:hover { background: rgba(255,255,255,.22); }
+
+        #notifiche-btn.ha-urgenti {
+            animation: campanaPulsa 1.8s ease-in-out infinite;
+        }
+        @keyframes campanaPulsa {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220,53,69,.5); }
+            50%       { box-shadow: 0 0 0 7px rgba(220,53,69,0); }
+        }
+
+        #notifiche-badge {
+            position: absolute;
+            top: -3px; right: -3px;
+            background: #dc3545;
+            color: #fff;
+            font-size: .6rem;
+            font-weight: 700;
+            min-width: 17px; height: 17px;
+            border-radius: 999px;
+            display: none;
+            align-items: center; justify-content: center;
+            border: 2px solid #0d6efd;
+            line-height: 1;
+            padding: 0 3px;
+        }
+
+        #notifiche-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 330px;
+            max-height: 420px;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: .65rem;
+            box-shadow: 0 10px 32px rgba(0,0,0,.18);
+            border: 1px solid #e9ecef;
+            z-index: 9999;
+        }
+
+        .notif-header {
+            padding: .75rem 1rem;
+            font-size: .8rem;
+            font-weight: 700;
+            color: #495057;
+            border-bottom: 1px solid #f1f3f5;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9fa;
+            border-radius: .65rem .65rem 0 0;
+            position: sticky;
+            top: 0;
+        }
+        .notif-permesso {
+            padding: .75rem 1rem;
+            font-size: .8rem;
+            background: #fff3cd;
+            border-bottom: 1px solid #fde68a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+        }
+        .notif-empty {
+            padding: 2rem 1rem;
+            text-align: center;
+            color: #adb5bd;
+            font-size: .85rem;
+        }
+        .notif-section-label {
+            padding: .35rem 1rem;
+            font-size: .68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: #6c757d;
+            background: #f8f9fa;
+            border-top: 1px solid #f1f3f5;
+        }
+        .notif-item {
+            padding: .65rem 1rem;
+            border-bottom: 1px solid #f8f9fa;
+            cursor: pointer;
+            transition: background .12s;
+        }
+        .notif-item:hover { background: #f0f4ff; }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-urgente { background: #fff8f8; border-left: 3px solid #dc3545; }
+        .notif-urgente:hover { background: #ffeaea; }
+        .notif-imminente { background: #fffbf0; border-left: 3px solid #fd7e14; }
+        .notif-imminente:hover { background: #fff3d6; }
+        .notif-passato { opacity: .45; }
+        .notif-item-ora {
+            font-size: .78rem;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: .15rem;
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+        }
+        .notif-urgente .notif-item-ora  { color: #dc3545; }
+        .notif-imminente .notif-item-ora { color: #fd7e14; }
+        .notif-item-paziente {
+            font-size: .85rem;
+            font-weight: 600;
+            color: #212529;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .notif-item-sub {
+            font-size: .75rem;
+            color: #6c757d;
+            margin-top: .1rem;
+        }
+
+        /* ══════════════════════════════════════════
            PANNELLO FILTRI TURNI
         ══════════════════════════════════════════ */
 
@@ -699,6 +837,15 @@
                 oninput="ricercaGlobale(this.value)"
                 autocomplete="off">
             <div id="ricerca-risultati"></div>
+        </div>
+
+        <!-- Centro notifiche -->
+        <div id="notifiche-wrap">
+            <button id="notifiche-btn" onclick="toggleNotifiche()" title="Notifiche e agenda di oggi">
+                🔔
+                <span id="notifiche-badge"></span>
+            </button>
+            <div id="notifiche-panel"></div>
         </div>
 
         <button class="btn btn-outline-light btn-sm fw-semibold" onclick="logout()">Esci</button>

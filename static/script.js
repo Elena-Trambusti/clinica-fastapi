@@ -45,6 +45,7 @@ function aggiornaInterfaccia() {
         document.getElementById('sezione-login').style.display = 'none';
         document.getElementById('sezione-app').style.display = 'block';
         caricaTutto();
+        inizializzaNotifiche();
     } else {
         document.getElementById('sezione-login').style.display = '';   // CSS gestisce flex
         document.getElementById('sezione-app').style.display = 'none';
@@ -68,9 +69,184 @@ async function faiLogin(e) {
 }
 
 function logout() {
+    if (_notificheInterval) clearInterval(_notificheInterval);
     localStorage.removeItem('token');
     location.reload();
 }
+
+// ═══════════════════════════════════════════════════════
+//  NOTIFICHE
+// ═══════════════════════════════════════════════════════
+
+let _notificheInterval = null;
+let _notificheInviate  = new Set();  // IDs già notificati via browser
+
+function inizializzaNotifiche() {
+    // Chiedi permesso browser notifications se non ancora deciso
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    controllaNotifiche();
+    if (_notificheInterval) clearInterval(_notificheInterval);
+    _notificheInterval = setInterval(controllaNotifiche, 2 * 60 * 1000); // ogni 2 min
+}
+
+async function controllaNotifiche() {
+    const res = await fetch('/turni/calendario', { headers: authHeaders() });
+    if (!res.ok) return;
+    const eventi = await res.json();
+
+    const ora     = new Date();
+    const oggiStr = ora.toISOString().slice(0, 10);
+
+    // Solo appuntamenti di oggi, ordinati per orario
+    const oggi = eventi
+        .filter(e => e.start.slice(0, 10) === oggiStr)
+        .sort((a, b) => new Date(a.start) - new Date(b.start));
+
+    // Badge: mostra il totale degli appuntamenti di oggi
+    const badge = document.getElementById('notifiche-badge');
+    if (badge) {
+        if (oggi.length > 0) {
+            badge.textContent = oggi.length;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    // Animazione pulsante se ci sono appuntamenti urgenti (entro 30 min)
+    const btn = document.getElementById('notifiche-btn');
+    const haUrgenti = oggi.some(e => {
+        const diff = (new Date(e.start) - ora) / 60000;
+        return diff > 0 && diff <= 30;
+    });
+    if (btn) {
+        btn.classList.toggle('ha-urgenti', haUrgenti);
+    }
+
+    // Browser notification per appuntamenti entro 15 minuti
+    oggi.forEach(e => {
+        const diffMin = (new Date(e.start) - ora) / 60000;
+        if (diffMin > 0 && diffMin <= 15 && !_notificheInviate.has(e.id)) {
+            _notificheInviate.add(e.id);
+            _inviaBrowserNotifica(
+                `⏰ Appuntamento tra ${Math.round(diffMin)} min`,
+                `${e.extendedProps?.paziente ?? e.title} — ${e.extendedProps?.medico ?? ''} · Stanza ${e.extendedProps?.stanza ?? '—'}`
+            );
+        }
+    });
+
+    _renderPanelNotifiche(oggi, ora);
+}
+
+function _inviaBrowserNotifica(titolo, corpo) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(titolo, {
+            body: corpo,
+            icon: '/static/logo.png',
+        });
+    }
+}
+
+function _renderPanelNotifiche(eventi, ora) {
+    const panel = document.getElementById('notifiche-panel');
+    if (!panel) return;
+
+    const dataLabel = ora.toLocaleDateString('it-IT', {
+        weekday: 'long', day: 'numeric', month: 'long',
+    });
+
+    // Separa: futuri urgenti (≤30min), futuri normali, passati
+    const urgenti   = [];
+    const normali   = [];
+    const passati   = [];
+
+    eventi.forEach(e => {
+        const diffMin = (new Date(e.start) - ora) / 60000;
+        if (diffMin < 0)        passati.push(e);
+        else if (diffMin <= 30) urgenti.push(e);
+        else                    normali.push(e);
+    });
+
+    let html = `
+        <div class="notif-header">
+            <span>📅 ${escapeHtml(dataLabel)}</span>
+            <span class="badge bg-primary">${eventi.length} appt.</span>
+        </div>`;
+
+    // Suggerimento permesso browser se non ancora concesso
+    if ('Notification' in window && Notification.permission === 'default') {
+        html += `
+        <div class="notif-permesso">
+            <span>🔔 Attiva le notifiche del browser</span>
+            <button class="btn btn-sm btn-warning fw-semibold py-0"
+                    onclick="Notification.requestPermission()">
+                Attiva
+            </button>
+        </div>`;
+    }
+
+    if (eventi.length === 0) {
+        html += '<div class="notif-empty">✅ Nessun appuntamento programmato per oggi</div>';
+        panel.innerHTML = html;
+        return;
+    }
+
+    function _rigaEvento(e, cls) {
+        const start   = new Date(e.start);
+        const orario  = start.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        const diffMin = (start - ora) / 60000;
+        const diffLbl = diffMin > 0 && diffMin <= 90
+            ? `<span class="badge ${diffMin <= 30 ? 'bg-danger' : 'bg-warning text-dark'} ms-1">tra ${Math.round(diffMin)} min</span>`
+            : '';
+        const paziente = escapeHtml(e.extendedProps?.paziente ?? e.title);
+        const medico   = escapeHtml(e.extendedProps?.medico ?? '—');
+        const stanza   = escapeHtml(e.extendedProps?.stanza ?? '—');
+        return `
+        <div class="notif-item ${cls}" onclick="saltaATab('tab-calendario',null,null);toggleNotifiche()">
+            <div class="notif-item-ora">${orario}${diffLbl}</div>
+            <div class="notif-item-paziente">${paziente}</div>
+            <div class="notif-item-sub">${medico} · Stanza ${stanza}</div>
+        </div>`;
+    }
+
+    if (urgenti.length) {
+        html += '<div class="notif-section-label">🔴 Imminenti (entro 30 min)</div>';
+        urgenti.forEach(e => { html += _rigaEvento(e, 'notif-urgente'); });
+    }
+    if (normali.length) {
+        html += '<div class="notif-section-label">📋 Prossimi</div>';
+        normali.forEach(e => { html += _rigaEvento(e, ''); });
+    }
+    if (passati.length) {
+        html += '<div class="notif-section-label">✓ Già effettuati</div>';
+        passati.forEach(e => { html += _rigaEvento(e, 'notif-passato'); });
+    }
+
+    panel.innerHTML = html;
+}
+
+function toggleNotifiche() {
+    const panel = document.getElementById('notifiche-panel');
+    if (!panel) return;
+    const apri = panel.style.display !== 'block';
+
+    // Chiudi altri dropdown aperti
+    const boxSearch = document.getElementById('ricerca-risultati');
+    if (boxSearch) boxSearch.style.display = 'none';
+
+    panel.style.display = apri ? 'block' : 'none';
+}
+
+// Chiudi il pannello cliccando fuori
+document.addEventListener('click', e => {
+    const wrap  = document.getElementById('notifiche-wrap');
+    const panel = document.getElementById('notifiche-panel');
+    if (panel && wrap && !wrap.contains(e.target)) {
+        panel.style.display = 'none';
+    }
+});
 
 // ═══════════════════════════════════════════════════════
 //  CARICAMENTO DATI
