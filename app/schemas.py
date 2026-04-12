@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -132,5 +133,37 @@ class VisitaResponse(BaseModel):
     trattamento: str
     note: str
     nome_medico: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+# --- ANAMNESI ---
+
+GRUPPI_SANGUIGNI = {"A+", "A-", "B+", "B-", "AB+", "AB-", "0+", "0-", ""}
+GRAVITA_ALLERGIA = {"lieve", "moderata", "grave"}
+
+
+class AnamnesiCreate(BaseModel):
+    gruppo_sanguigno: str = ""
+    allergie: list[dict[str, Any]] = []          # [{"nome": "...", "gravita": "grave"}]
+    patologie_croniche: list[str] = []            # ["Diabete tipo 2", ...]
+    farmaci_in_corso: list[dict[str, Any]] = []   # [{"nome": "...", "dosaggio": "..."}]
+    contatto_emergenza_nome: str = ""
+    contatto_emergenza_tel: str = ""
+    contatto_emergenza_relazione: str = ""
+    note_anamnestiche: str = ""
+
+
+class AnamnesiResponse(BaseModel):
+    id: int
+    paziente_id: int
+    gruppo_sanguigno: str
+    allergie: list[dict[str, Any]]
+    patologie_croniche: list[str]
+    farmaci_in_corso: list[dict[str, Any]]
+    contatto_emergenza_nome: str
+    contatto_emergenza_tel: str
+    contatto_emergenza_relazione: str
+    note_anamnestiche: str
 
     model_config = {"from_attributes": True}

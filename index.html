@@ -848,6 +848,93 @@
             font-weight: 500;
         }
 
+        /* ── ANAMNESI PAZIENTE ── */
+        .anamnesi-panel {
+            background: #f8f9ff;
+            border: 1px solid #e0e7ff;
+            border-radius: .75rem;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .anamnesi-alert-grave {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            border-radius: .6rem;
+            padding: .6rem 1rem;
+            margin-bottom: .9rem;
+            color: #b91c1c;
+            font-size: .82rem;
+            font-weight: 600;
+        }
+        .anamnesi-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .75rem 1.5rem;
+        }
+        @media (max-width: 575px) { .anamnesi-grid { grid-template-columns: 1fr; } }
+        .anamnesi-section-title {
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: .45rem;
+        }
+        .anamnesi-empty { color: #adb5bd; font-size: .8rem; font-style: italic; }
+        .tag-patologia {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #0369a1;
+            border-radius: .35rem;
+            padding: .15rem .55rem;
+            font-size: .74rem;
+            font-weight: 600;
+            margin: .1rem .15rem .1rem 0;
+        }
+        .tag-farmaco {
+            display: flex;
+            align-items: baseline;
+            gap: .4rem;
+            font-size: .8rem;
+            margin-bottom: .25rem;
+        }
+        .tag-farmaco .farmaco-nome { font-weight: 600; color: #1a1a2e; }
+        .tag-farmaco .farmaco-dose { color: #6c757d; font-size: .74rem; }
+        .allergia-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            border-radius: .4rem;
+            padding: .18rem .55rem;
+            font-size: .74rem;
+            font-weight: 700;
+            margin: .1rem .15rem .1rem 0;
+        }
+        .allergia-grave    { background: #fee2e2; color: #b91c1c; }
+        .allergia-moderata { background: #fef3c7; color: #92400e; }
+        .allergia-lieve    { background: #d1fae5; color: #065f46; }
+        .gruppo-sangue-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: #fff;
+            font-weight: 800;
+            font-size: .85rem;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(220,38,38,.35);
+        }
+        .gruppo-sangue-vuoto { background: #e5e7eb; color: #9ca3af; box-shadow: none; }
+        .anamnesi-row-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: .85rem;
+        }
+
         /* ── RUOLI UTENTE ── */
         /* Nascondi per ruolo usando data-role sul body */
         body:not([data-role="admin"]) .admin-only { display: none !important; }
@@ -1544,6 +1631,127 @@
             </div>
 
             <div class="modal-body p-4">
+
+                <!-- ══ ANAMNESI ══ -->
+                <div class="anamnesi-panel" id="anamnesi-panel">
+                    <div class="anamnesi-row-header">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="gruppo-sangue-badge gruppo-sangue-vuoto" id="anamnesi-gruppo-badge">—</div>
+                            <div>
+                                <div class="fw-bold text-primary" style="font-size:.9rem">Anamnesi Medica</div>
+                                <div class="text-muted" style="font-size:.74rem">Allergie · Patologie · Farmaci · Emergenza</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#formAnamnesi">
+                            ✏️ Modifica
+                        </button>
+                    </div>
+
+                    <!-- Alert allergie gravi -->
+                    <div id="anamnesi-alert-grave" class="anamnesi-alert-grave d-none">
+                        ⚠️ <strong>ATTENZIONE — Allergie gravi:</strong> <span id="anamnesi-alert-testo"></span>
+                    </div>
+
+                    <div class="anamnesi-grid" id="anamnesi-body">
+                        <!-- Renderizzato da JS -->
+                        <div><div class="anamnesi-section-title">🔴 Allergie</div><span class="anamnesi-empty">—</span></div>
+                        <div><div class="anamnesi-section-title">🫀 Patologie Croniche</div><span class="anamnesi-empty">—</span></div>
+                        <div><div class="anamnesi-section-title">💊 Farmaci in Corso</div><span class="anamnesi-empty">—</span></div>
+                        <div><div class="anamnesi-section-title">👥 Contatto Emergenza</div><span class="anamnesi-empty">—</span></div>
+                    </div>
+                    <div id="anamnesi-note-wrap" class="mt-2 d-none">
+                        <div class="anamnesi-section-title">📝 Note Anamnestiche</div>
+                        <div id="anamnesi-note-testo" class="text-muted small"></div>
+                    </div>
+                </div>
+
+                <!-- Form modifica anamnesi (collassabile) -->
+                <div class="collapse mb-4" id="formAnamnesi">
+                    <div class="form-sezione border border-primary border-opacity-25">
+                        <h6 class="fw-bold mb-3 text-primary">Modifica Anamnesi Medica</h6>
+                        <form id="formSalvaAnamnesi" onsubmit="salvaAnamnesi(event)">
+                            <input type="hidden" id="anamnesi-paziente-id">
+
+                            <div class="row g-3">
+                                <!-- Gruppo sanguigno -->
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">🩸 Gruppo Sanguigno</label>
+                                    <select id="anamnesi-gruppo" class="form-select">
+                                        <option value="">Non specificato</option>
+                                        <option>A+</option><option>A-</option>
+                                        <option>B+</option><option>B-</option>
+                                        <option>AB+</option><option>AB-</option>
+                                        <option>0+</option><option>0-</option>
+                                    </select>
+                                </div>
+
+                                <!-- Contatto emergenza -->
+                                <div class="col-md-9">
+                                    <label class="form-label small fw-semibold">👥 Contatto di Emergenza</label>
+                                    <div class="row g-2">
+                                        <div class="col-md-5">
+                                            <input type="text" id="anamnesi-ce-nome" class="form-control form-control-sm" placeholder="Nome e cognome">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <input type="text" id="anamnesi-ce-tel" class="form-control form-control-sm" placeholder="Telefono">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <input type="text" id="anamnesi-ce-rel" class="form-control form-control-sm" placeholder="Relazione (es. Coniuge)">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Allergie -->
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label small fw-semibold mb-0">🔴 Allergie</label>
+                                        <button type="button" class="btn btn-outline-danger btn-sm px-2 py-0"
+                                                onclick="aggiungiRigaAllergia()">+ Aggiungi</button>
+                                    </div>
+                                    <div id="allergie-lista"></div>
+                                </div>
+
+                                <!-- Patologie croniche -->
+                                <div class="col-md-6">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label small fw-semibold mb-0">🫀 Patologie Croniche</label>
+                                        <button type="button" class="btn btn-outline-primary btn-sm px-2 py-0"
+                                                onclick="aggiungiRigaPatologia()">+ Aggiungi</button>
+                                    </div>
+                                    <div id="patologie-lista"></div>
+                                </div>
+
+                                <!-- Farmaci in corso -->
+                                <div class="col-md-6">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label small fw-semibold mb-0">💊 Farmaci in Corso</label>
+                                        <button type="button" class="btn btn-outline-success btn-sm px-2 py-0"
+                                                onclick="aggiungiRigaFarmaco()">+ Aggiungi</button>
+                                    </div>
+                                    <div id="farmaci-lista"></div>
+                                </div>
+
+                                <!-- Note anamnestiche -->
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">📝 Note Anamnestiche</label>
+                                    <textarea id="anamnesi-note" class="form-control" rows="2"
+                                              placeholder="Annotazioni cliniche generali, abitudini di vita, ecc."></textarea>
+                                </div>
+
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="submit" class="btn btn-success fw-semibold px-4">
+                                        💾 Salva Anamnesi
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-toggle="collapse" data-bs-target="#formAnamnesi">
+                                        Annulla
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
 
                 <!-- Form aggiungi visita (collassabile) -->
                 <div class="mb-4">

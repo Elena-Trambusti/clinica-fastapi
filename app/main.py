@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -765,6 +766,82 @@ def elimina_visita(
     db.delete(visita)
     db.commit()
     return {"message": "Visita eliminata"}
+
+
+# --- ANAMNESI ---
+
+def _anamnesi_to_response(a: models.Anamnesi) -> schemas.AnamnesiResponse:
+    """Deserializza i campi JSON e restituisce lo schema di risposta."""
+    def _load(v: str, default):
+        try:
+            return json.loads(v or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return default
+
+    return schemas.AnamnesiResponse(
+        id=a.id,
+        paziente_id=a.paziente_id,
+        gruppo_sanguigno=a.gruppo_sanguigno or "",
+        allergie=_load(a.allergie, []),
+        patologie_croniche=_load(a.patologie_croniche, []),
+        farmaci_in_corso=_load(a.farmaci_in_corso, []),
+        contatto_emergenza_nome=a.contatto_emergenza_nome or "",
+        contatto_emergenza_tel=a.contatto_emergenza_tel or "",
+        contatto_emergenza_relazione=a.contatto_emergenza_relazione or "",
+        note_anamnestiche=a.note_anamnestiche or "",
+    )
+
+
+@app.get("/pazienti/{paziente_id}/anamnesi", response_model=schemas.AnamnesiResponse)
+def get_anamnesi(
+    paziente_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paz = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paz:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    a = db.query(models.Anamnesi).filter(models.Anamnesi.paziente_id == paziente_id).first()
+    if not a:
+        # Restituisce un'anamnesi vuota senza crearla nel DB
+        return schemas.AnamnesiResponse(
+            id=0, paziente_id=paziente_id,
+            gruppo_sanguigno="", allergie=[], patologie_croniche=[],
+            farmaci_in_corso=[], contatto_emergenza_nome="",
+            contatto_emergenza_tel="", contatto_emergenza_relazione="",
+            note_anamnestiche="",
+        )
+    return _anamnesi_to_response(a)
+
+
+@app.put("/pazienti/{paziente_id}/anamnesi", response_model=schemas.AnamnesiResponse)
+def upsert_anamnesi(
+    paziente_id: int,
+    dati: schemas.AnamnesiCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paz = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paz:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+
+    a = db.query(models.Anamnesi).filter(models.Anamnesi.paziente_id == paziente_id).first()
+    if not a:
+        a = models.Anamnesi(paziente_id=paziente_id)
+        db.add(a)
+
+    a.gruppo_sanguigno = dati.gruppo_sanguigno
+    a.allergie = json.dumps(dati.allergie, ensure_ascii=False)
+    a.patologie_croniche = json.dumps(dati.patologie_croniche, ensure_ascii=False)
+    a.farmaci_in_corso = json.dumps(dati.farmaci_in_corso, ensure_ascii=False)
+    a.contatto_emergenza_nome = dati.contatto_emergenza_nome
+    a.contatto_emergenza_tel = dati.contatto_emergenza_tel
+    a.contatto_emergenza_relazione = dati.contatto_emergenza_relazione
+    a.note_anamnestiche = dati.note_anamnestiche
+
+    db.commit()
+    db.refresh(a)
+    return _anamnesi_to_response(a)
 
 
 # --- CALENDARIO ---

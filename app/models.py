@@ -28,6 +28,29 @@ class Paziente(Base):
 
     turni = relationship("Turno", back_populates="paziente_assegnato")
     visite = relationship("Visita", back_populates="paziente")
+    anamnesi = relationship("Anamnesi", back_populates="paziente", uselist=False)
+
+
+class Anamnesi(Base):
+    """Anamnesi medica del paziente — relazione 1:1 con Paziente."""
+    __tablename__ = "anamnesi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"), unique=True, nullable=False)
+
+    gruppo_sanguigno = Column(String, default="")          # es. "A+", "0-"
+    # JSON text: [{"nome": "Penicillina", "gravita": "grave"}]
+    allergie = Column(Text, default="[]")
+    # JSON text: ["Diabete tipo 2", "Ipertensione arteriosa"]
+    patologie_croniche = Column(Text, default="[]")
+    # JSON text: [{"nome": "Metformina", "dosaggio": "500mg 2x/die"}]
+    farmaci_in_corso = Column(Text, default="[]")
+    contatto_emergenza_nome = Column(String, default="")
+    contatto_emergenza_tel = Column(String, default="")
+    contatto_emergenza_relazione = Column(String, default="")  # Coniuge, Genitore…
+    note_anamnestiche = Column(Text, default="")
+
+    paziente = relationship("Paziente", back_populates="anamnesi")
 
 
 class Turno(Base):

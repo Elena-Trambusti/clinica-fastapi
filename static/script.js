@@ -1462,11 +1462,16 @@ function apriCartellaClinica(id, nome, cognome, cf, email, tel) {
     const collapseEl = document.getElementById('formNuovaVisita');
     bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).hide();
 
+    // Resetta il form anamnesi e chiude il collapse
+    const collapseAnamnesi = document.getElementById('formAnamnesi');
+    if (collapseAnamnesi) bootstrap.Collapse.getOrCreateInstance(collapseAnamnesi, { toggle: false }).hide();
+
     // Apre il modal
     new bootstrap.Modal(document.getElementById('modalCartella')).show();
 
-    // Carica le visite
+    // Carica visite e anamnesi in parallelo
     caricaVisite(id);
+    caricaAnamnesi(id);
 }
 
 function _popolaSelectMediciVisita(selectId) {
@@ -1780,6 +1785,210 @@ async function inviaEmailTurno(id) {
     } else {
         const err = await res.json().catch(() => ({}));
         mostraNotifica(err.detail || 'Impossibile inviare email (controlla la configurazione SMTP)', false);
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  ANAMNESI PAZIENTE
+// ═══════════════════════════════════════════════════════
+
+const _gravitaLabel = { grave: 'GRAVE', moderata: 'MODERATA', lieve: 'LIEVE' };
+const _gravitaClass = { grave: 'allergia-grave', moderata: 'allergia-moderata', lieve: 'allergia-lieve' };
+
+async function caricaAnamnesi(pazienteId) {
+    const res = await fetch(`/pazienti/${pazienteId}/anamnesi`, { headers: authHeaders() });
+    if (!res.ok) return;
+    const dati = await res.json();
+    renderAnamnesi(dati);
+    _precompilaFormAnamnesi(dati, pazienteId);
+}
+
+function renderAnamnesi(d) {
+    // Gruppo sanguigno
+    const gsBadge = document.getElementById('anamnesi-gruppo-badge');
+    if (gsBadge) {
+        gsBadge.textContent = d.gruppo_sanguigno || '—';
+        gsBadge.className = `gruppo-sangue-badge${d.gruppo_sanguigno ? '' : ' gruppo-sangue-vuoto'}`;
+    }
+
+    // Alert allergie gravi
+    const gravi = (d.allergie || []).filter(a => a.gravita === 'grave');
+    const alertEl = document.getElementById('anamnesi-alert-grave');
+    const alertTesto = document.getElementById('anamnesi-alert-testo');
+    if (alertEl) {
+        if (gravi.length > 0) {
+            alertEl.classList.remove('d-none');
+            alertTesto.textContent = gravi.map(a => a.nome).join(', ');
+        } else {
+            alertEl.classList.add('d-none');
+        }
+    }
+
+    // Grid anamnesi
+    const body = document.getElementById('anamnesi-body');
+    if (!body) return;
+
+    // Allergie
+    const allergieHtml = (d.allergie || []).length > 0
+        ? d.allergie.map(a => {
+            const cls = _gravitaClass[a.gravita] || 'allergia-lieve';
+            const lbl = _gravitaLabel[a.gravita] || a.gravita;
+            return `<span class="allergia-badge ${cls}">${escapeHtml(a.nome)} <small>${lbl}</small></span>`;
+          }).join('')
+        : '<span class="anamnesi-empty">Nessuna allergia registrata</span>';
+
+    // Patologie
+    const patologieHtml = (d.patologie_croniche || []).length > 0
+        ? d.patologie_croniche.map(p => `<span class="tag-patologia">${escapeHtml(p)}</span>`).join('')
+        : '<span class="anamnesi-empty">Nessuna patologia cronica</span>';
+
+    // Farmaci
+    const farmaciHtml = (d.farmaci_in_corso || []).length > 0
+        ? d.farmaci_in_corso.map(f =>
+            `<div class="tag-farmaco">
+              <span class="farmaco-nome">• ${escapeHtml(f.nome)}</span>
+              ${f.dosaggio ? `<span class="farmaco-dose">${escapeHtml(f.dosaggio)}</span>` : ''}
+            </div>`).join('')
+        : '<span class="anamnesi-empty">Nessun farmaco in corso</span>';
+
+    // Contatto emergenza
+    const ceHtml = d.contatto_emergenza_nome
+        ? `<div class="fw-semibold small">${escapeHtml(d.contatto_emergenza_nome)}</div>
+           ${d.contatto_emergenza_relazione ? `<div class="text-muted" style="font-size:.75rem">${escapeHtml(d.contatto_emergenza_relazione)}</div>` : ''}
+           ${d.contatto_emergenza_tel ? `<div class="text-primary" style="font-size:.78rem">📞 ${escapeHtml(d.contatto_emergenza_tel)}</div>` : ''}`
+        : '<span class="anamnesi-empty">Non specificato</span>';
+
+    body.innerHTML = `
+        <div><div class="anamnesi-section-title">🔴 Allergie</div>${allergieHtml}</div>
+        <div><div class="anamnesi-section-title">🫀 Patologie Croniche</div>${patologieHtml}</div>
+        <div><div class="anamnesi-section-title">💊 Farmaci in Corso</div>${farmaciHtml}</div>
+        <div><div class="anamnesi-section-title">👥 Contatto Emergenza</div>${ceHtml}</div>
+    `;
+
+    // Note
+    const noteWrap = document.getElementById('anamnesi-note-wrap');
+    const noteTesto = document.getElementById('anamnesi-note-testo');
+    if (noteWrap) {
+        if (d.note_anamnestiche) {
+            noteWrap.classList.remove('d-none');
+            noteTesto.textContent = d.note_anamnestiche;
+        } else {
+            noteWrap.classList.add('d-none');
+        }
+    }
+}
+
+function _precompilaFormAnamnesi(d, pazienteId) {
+    document.getElementById('anamnesi-paziente-id').value = pazienteId;
+    const gs = document.getElementById('anamnesi-gruppo');
+    if (gs) gs.value = d.gruppo_sanguigno || '';
+    document.getElementById('anamnesi-ce-nome').value = d.contatto_emergenza_nome || '';
+    document.getElementById('anamnesi-ce-tel').value  = d.contatto_emergenza_tel  || '';
+    document.getElementById('anamnesi-ce-rel').value  = d.contatto_emergenza_relazione || '';
+    document.getElementById('anamnesi-note').value    = d.note_anamnestiche || '';
+
+    // Allergie
+    const allergieDiv = document.getElementById('allergie-lista');
+    allergieDiv.innerHTML = '';
+    (d.allergie || []).forEach(a => _aggiungiRigaAllergia(a.nome, a.gravita));
+
+    // Patologie
+    const patDiv = document.getElementById('patologie-lista');
+    patDiv.innerHTML = '';
+    (d.patologie_croniche || []).forEach(p => _aggiungiRigaPatologia(p));
+
+    // Farmaci
+    const farDiv = document.getElementById('farmaci-lista');
+    farDiv.innerHTML = '';
+    (d.farmaci_in_corso || []).forEach(f => _aggiungiRigaFarmaco(f.nome, f.dosaggio));
+}
+
+// ── Righe dinamiche form ───────────────────────────────────────────────────
+
+function aggiungiRigaAllergia()  { _aggiungiRigaAllergia('', 'moderata'); }
+function aggiungiRigaPatologia() { _aggiungiRigaPatologia(''); }
+function aggiungiRigaFarmaco()   { _aggiungiRigaFarmaco('', ''); }
+
+function _aggiungiRigaAllergia(nome, gravita) {
+    const div = document.createElement('div');
+    div.className = 'd-flex gap-2 mb-1 align-items-center';
+    div.innerHTML = `
+        <input type="text" class="form-control form-control-sm allergia-nome" value="${escapeHtml(nome)}" placeholder="Sostanza (es. Penicillina)">
+        <select class="form-select form-select-sm allergia-gravita" style="max-width:130px">
+            <option value="lieve"    ${gravita==='lieve'    ?'selected':''}>Lieve</option>
+            <option value="moderata" ${gravita==='moderata' ?'selected':''}>Moderata</option>
+            <option value="grave"    ${gravita==='grave'    ?'selected':''}>Grave</option>
+        </select>
+        <button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest('div').remove()">✕</button>`;
+    document.getElementById('allergie-lista').appendChild(div);
+}
+
+function _aggiungiRigaPatologia(testo) {
+    const div = document.createElement('div');
+    div.className = 'd-flex gap-2 mb-1 align-items-center';
+    div.innerHTML = `
+        <input type="text" class="form-control form-control-sm patologia-nome" value="${escapeHtml(testo)}" placeholder="Es. Diabete tipo 2">
+        <button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest('div').remove()">✕</button>`;
+    document.getElementById('patologie-lista').appendChild(div);
+}
+
+function _aggiungiRigaFarmaco(nome, dosaggio) {
+    const div = document.createElement('div');
+    div.className = 'd-flex gap-2 mb-1 align-items-center';
+    div.innerHTML = `
+        <input type="text" class="form-control form-control-sm farmaco-nome-input" value="${escapeHtml(nome)}" placeholder="Farmaco (es. Metformina)">
+        <input type="text" class="form-control form-control-sm farmaco-dose-input" value="${escapeHtml(dosaggio)}" placeholder="Dosaggio (es. 500mg 2x/die)">
+        <button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest('div').remove()">✕</button>`;
+    document.getElementById('farmaci-lista').appendChild(div);
+}
+
+async function salvaAnamnesi(e) {
+    e.preventDefault();
+    const pazienteId = document.getElementById('anamnesi-paziente-id').value;
+
+    const allergie = [...document.querySelectorAll('#allergie-lista > div')]
+        .map(row => ({
+            nome:    row.querySelector('.allergia-nome').value.trim(),
+            gravita: row.querySelector('.allergia-gravita').value,
+        }))
+        .filter(a => a.nome);
+
+    const patologie = [...document.querySelectorAll('#patologie-lista .patologia-nome')]
+        .map(el => el.value.trim())
+        .filter(Boolean);
+
+    const farmaci = [...document.querySelectorAll('#farmaci-lista > div')]
+        .map(row => ({
+            nome:    row.querySelector('.farmaco-nome-input').value.trim(),
+            dosaggio: row.querySelector('.farmaco-dose-input').value.trim(),
+        }))
+        .filter(f => f.nome);
+
+    const payload = {
+        gruppo_sanguigno:             document.getElementById('anamnesi-gruppo').value,
+        allergie,
+        patologie_croniche:           patologie,
+        farmaci_in_corso:             farmaci,
+        contatto_emergenza_nome:      document.getElementById('anamnesi-ce-nome').value.trim(),
+        contatto_emergenza_tel:       document.getElementById('anamnesi-ce-tel').value.trim(),
+        contatto_emergenza_relazione: document.getElementById('anamnesi-ce-rel').value.trim(),
+        note_anamnestiche:            document.getElementById('anamnesi-note').value.trim(),
+    };
+
+    const res = await fetch(`/pazienti/${pazienteId}/anamnesi`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+        const dati = await res.json();
+        renderAnamnesi(dati);
+        bootstrap.Collapse.getOrCreateInstance(document.getElementById('formAnamnesi'), { toggle: false }).hide();
+        mostraNotifica('Anamnesi salvata con successo.');
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore nel salvataggio.', false);
     }
 }
 
