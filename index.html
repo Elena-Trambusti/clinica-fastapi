@@ -2,214 +2,430 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Gestionale Clinica Pro - Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionale Clinica Pro</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <style>
+        body { background-color: #f0f4f8; }
+
+        #sezione-app { display: none; }
+
+        .navbar-clinica {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        }
+
+        .stat-card { transition: transform .15s; cursor: default; }
+        .stat-card:hover { transform: translateY(-3px); }
+
+        .nav-tabs .nav-link {
+            font-weight: 500;
+            color: #495057;
+            border: none;
+            border-bottom: 3px solid transparent;
+            padding: .75rem 1.25rem;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            border-bottom-color: #0d6efd;
+            background: transparent;
+        }
+        .nav-tabs { border-bottom: 2px solid #dee2e6; }
+
+        .tab-content-wrapper {
+            background: #fff;
+            border-radius: 0 0 .5rem .5rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,.08);
+            padding: 1.5rem;
+        }
+
+        #calendario-clinica { height: 720px; }
+
+        .fc-event { cursor: pointer; font-size: .82rem; }
+
+        .fc-daygrid-event-dot { display: none; }
+
+        .legenda-colori .dot {
+            display: inline-block;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .table th { background-color: #f8f9fa; font-weight: 600; font-size: .9rem; }
+
+        .form-sezione { background: #f8f9fa; border-radius: .5rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+    </style>
 </head>
-<body class="p-5" style="background-color: #e0f7fa;">
+<body>
 
-    <div class="container">
-        <div id="sezione-login" class="mx-auto bg-white p-4 rounded shadow" style="max-width: 400px;">
-            <h2 class="text-center text-primary mb-4">🔐 Accesso Clinica</h2>
-            <div class="text-center mb-3">
-    <img src="/static/logo.png" alt="Logo Aziendale" width="100" class="rounded-circle shadow-sm">
-</div>
-            <form onsubmit="faiLogin(event)">
-                <input type="text" id="user" class="form-control mb-2" placeholder="Username" required>
-                <input type="password" id="pass" class="form-control mb-3" placeholder="Password" required>
-                <button type="submit" class="btn btn-primary w-100">Entra nel Sistema</button>
-            </form>
+<!-- ═══════════════════════════════════ LOGIN ═══════════════════════════════════ -->
+<div id="sezione-login" class="d-flex align-items-center justify-content-center min-vh-100">
+    <div class="bg-white p-4 rounded-3 shadow-lg" style="width: 380px;">
+        <div class="text-center mb-4">
+            <img src="/static/logo.png" alt="Logo" width="72" class="rounded-circle shadow-sm mb-3"
+                 onerror="this.style.display='none'">
+            <h4 class="fw-bold text-primary mb-0">Gestionale Clinica</h4>
+            <small class="text-muted">Accedi per continuare</small>
         </div>
-
-        <div id="sezione-app" class="bg-white p-4 rounded shadow" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="text-primary d-flex align-items-center">
-    <img src="/static/logo.png" alt="Logo" width="40" class="me-3 rounded-circle shadow-sm">
-    Gestionale Clinica Aziendale
-</h1>
-                <button class="btn btn-outline-danger btn-sm" onclick="logout()">Esci (Logout)</button>
+        <form onsubmit="faiLogin(event)">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Username</label>
+                <input type="text" id="user" class="form-control" placeholder="Inserisci username" required autofocus>
             </div>
-            
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-primary text-white text-center shadow">
-            <div class="card-body">
-                <h5 class="card-title">👨‍⚕️ Medici Totali</h5>
-                <h2 class="card-text fw-bold" id="stat-medici">0</h2>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Password</label>
+                <input type="password" id="pass" class="form-control" placeholder="Inserisci password" required>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-success text-white text-center shadow">
-            <div class="card-body">
-                <h5 class="card-title">👤 Pazienti Registrati</h5>
-                <h2 class="card-text fw-bold" id="stat-pazienti">0</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-info text-white text-center shadow">
-            <div class="card-body">
-                <h5 class="card-title">📅 Appuntamenti</h5>
-                <h2 class="card-text fw-bold" id="stat-turni">0</h2>
-            </div>
-        </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Accedi</button>
+        </form>
     </div>
 </div>
 
-            <div class="row">
-                <div class="col-md-6">
-                    <h3 class="text-secondary">👨‍⚕️ Gestione Medici</h3>
-                    <div class="card mb-3 p-3 bg-light">
-                        <form onsubmit="aggiungiMedico(event)">
-                            <input type="text" id="nome-medico" class="form-control mb-2" placeholder="Nome" required>
-                            <input type="text" id="cognome-medico" class="form-control mb-2" placeholder="Cognome" required>
-                            <input type="text" id="spec-medico" class="form-control mb-2" placeholder="Specializzazione" required>
-                            <button type="submit" class="btn btn-primary w-100">Aggiungi Medico</button>
-                        </form>
+<!-- ═══════════════════════════════════ APP ═══════════════════════════════════ -->
+<div id="sezione-app">
+
+    <!-- Navbar -->
+    <nav class="navbar-clinica navbar navbar-dark px-4 py-2 mb-0">
+        <div class="d-flex align-items-center gap-3">
+            <img src="/static/logo.png" alt="Logo" width="36" class="rounded-circle"
+                 onerror="this.style.display='none'">
+            <span class="navbar-brand mb-0 fw-bold fs-5">Gestionale Clinica Aziendale</span>
+        </div>
+        <button class="btn btn-outline-light btn-sm fw-semibold" onclick="logout()">Esci</button>
+    </nav>
+
+    <div class="container-fluid px-4 pt-3">
+
+        <!-- Stat cards -->
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+                <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#0d6efd,#6ea8fe)">
+                    <div class="card-body d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <div class="small opacity-75 fw-semibold text-uppercase">Medici</div>
+                            <div class="fs-2 fw-bold" id="stat-medici">—</div>
+                        </div>
+                        <span style="font-size:2rem">👨‍⚕️</span>
                     </div>
-                    <div class="mb-3">
-    <div class="input-group">
-        <span class="input-group-text bg-info text-white">🔍</span>
-        <input type="text" id="cercaMedico" class="form-control" placeholder="Cerca medico per nome, cognome o specializzazione..." onkeyup="filtraMedici()">
-    </div>
-</div>
-                    <table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Nominativo</th>
-            <th>Azioni</th> </tr>
-    </thead>
-    <tbody id="tabella-medici"></tbody>
-</table>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>🗓️ Gestione Turni</h3>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="scaricaCSVTurni()">
-        🟢 Scarica Turni (CSV)
-    </button>
-</div>
-                    <div class="card mb-3 p-3 bg-light">
-                        <form onsubmit="aggiungiTurno(event)">
-                            <input type="time" id="orario-turno" class="form-control mb-2" required>
-                            <input type="text" id="stanza-turno" class="form-control mb-2" placeholder="Stanza" required>
-                            <select id="id-medico-turno" class="form-select mb-2" required></select>
-                            <select id="id-paziente-turno" class="form-select mb-2" required></select>
-                            <button type="submit" class="btn btn-success w-100">Assegna Turno</button>
-                        </form>
-                    </div>
-                    <table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Orario</th>
-            <th>Stanza</th>
-            <th>Medico</th>
-            <th>Paziente</th>
-            <th>Azioni</th>
-        </tr>
-    </thead>
-    <tbody id="tabella-turni"></tbody>
-</table>
                 </div>
             </div>
-
-<div class="bg-white p-4 rounded shadow mt-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>👤 Gestione Pazienti</h3>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="scaricaCSV()">
-        🟢 Scarica Excel (CSV)
-    </button>
-</div>
-<div class="mb-3">
-    <div class="input-group">
-        <span class="input-group-text bg-primary text-white">🔍</span>
-        <input type="text" id="cercaPaziente" class="form-control" placeholder="Cerca per nome, cognome o codice fiscale..." onkeyup="filtraPazienti()">
-    </div>
-</div>
-    <form onsubmit="aggiungiPaziente(event)">
-        <input type="text" id="nome-paziente" class="form-control mb-2" placeholder="Nome" required>
-        <input type="text" id="cognome-paziente" class="form-control mb-2" placeholder="Cognome" required>
-        <input type="text" id="cf-paziente" class="form-control mb-2" placeholder="Codice Fiscale" required>
-        <input type="email" id="email-paziente" class="form-control mb-2" placeholder="Email" required>
-        <input type="text" id="tel-paziente" class="form-control mb-2" placeholder="Telefono" required>
-        <button type="submit" class="btn btn-primary w-100">Registra Paziente</button>
-    </form>
-    <table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Nome</th>
-            <th>Cognome</th>
-            <th>Codice Fiscale</th>
-            <th>Azioni</th>
-        </tr>
-    </thead>
-    <tbody id="tabella-pazienti"></tbody>
-</table>
-</div>
-
-</div>
-    </div>
-<script src="/static/script.js"></script>
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-<div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="d-flex">
-    <div id="toast-body" class="toast-body">
+            <div class="col-sm-4">
+                <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#198754,#75b798)">
+                    <div class="card-body d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <div class="small opacity-75 fw-semibold text-uppercase">Pazienti</div>
+                            <div class="fs-2 fw-bold" id="stat-pazienti">—</div>
+                        </div>
+                        <span style="font-size:2rem">👤</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="card stat-card border-0 shadow-sm text-white" style="background:linear-gradient(135deg,#6f42c1,#a98eda)">
+                    <div class="card-body d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <div class="small opacity-75 fw-semibold text-uppercase">Appuntamenti</div>
+                            <div class="fs-2 fw-bold" id="stat-turni">—</div>
+                        </div>
+                        <span style="font-size:2rem">📅</span>
+                    </div>
+                </div>
+            </div>
         </div>
-    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
+
+        <!-- Tab navigation -->
+        <ul class="nav nav-tabs" id="mainTabs">
+            <li class="nav-item">
+                <button class="nav-link active" id="tab-calendario" data-bs-toggle="tab"
+                        data-bs-target="#pane-calendario" type="button">
+                    📅 Calendario
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-turni" data-bs-toggle="tab"
+                        data-bs-target="#pane-turni" type="button">
+                    🗓️ Turni
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-medici" data-bs-toggle="tab"
+                        data-bs-target="#pane-medici" type="button">
+                    👨‍⚕️ Medici
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-pazienti" data-bs-toggle="tab"
+                        data-bs-target="#pane-pazienti" type="button">
+                    👤 Pazienti
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab content -->
+        <div class="tab-content tab-content-wrapper" id="mainTabContent">
+
+            <!-- ════ CALENDARIO ════ -->
+            <div class="tab-pane fade show active" id="pane-calendario">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0 text-primary">Agenda Appuntamenti</h5>
+                    <div id="legenda-medici" class="d-flex flex-wrap gap-3 legenda-colori small"></div>
+                </div>
+                <div id="calendario-clinica"></div>
+            </div>
+
+            <!-- ════ TURNI ════ -->
+            <div class="tab-pane fade" id="pane-turni">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0 text-primary">Gestione Turni</h5>
+                    <button class="btn btn-outline-success btn-sm" onclick="scaricaCSVTurni()">
+                        Scarica Turni CSV
+                    </button>
+                </div>
+
+                <div class="form-sezione">
+                    <h6 class="fw-semibold mb-3 text-secondary">Nuovo Appuntamento</h6>
+                    <form onsubmit="aggiungiTurno(event)" id="formNuovoTurno">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Data e Ora</label>
+                                <input type="datetime-local" id="orario-turno" class="form-control" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Stanza</label>
+                                <input type="text" id="stanza-turno" class="form-control" placeholder="Es. Stanza 3" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Medico</label>
+                                <select id="id-medico-turno" class="form-select" required>
+                                    <option value="" disabled selected>Seleziona medico...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small fw-semibold">Paziente</label>
+                                <select id="id-paziente-turno" class="form-select" required>
+                                    <option value="" disabled selected>Seleziona paziente...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success w-100 fw-semibold">
+                                    Crea Appuntamento
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <table class="table table-hover table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th>Data e Ora</th>
+                            <th>Stanza</th>
+                            <th>Medico</th>
+                            <th>Paziente</th>
+                            <th style="width:90px">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabella-turni"></tbody>
+                </table>
+            </div>
+
+            <!-- ════ MEDICI ════ -->
+            <div class="tab-pane fade" id="pane-medici">
+                <h5 class="fw-bold mb-3 text-primary">Gestione Medici</h5>
+
+                <div class="form-sezione">
+                    <h6 class="fw-semibold mb-3 text-secondary">Nuovo Medico</h6>
+                    <form onsubmit="aggiungiMedico(event)">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <input type="text" id="nome-medico" class="form-control" placeholder="Nome" required>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" id="cognome-medico" class="form-control" placeholder="Cognome" required>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" id="spec-medico" class="form-control" placeholder="Specializzazione" required>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary fw-semibold px-4">
+                                    Aggiungi Medico
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="input-group mb-3" style="max-width:400px">
+                    <span class="input-group-text bg-white">🔍</span>
+                    <input type="text" id="cercaMedico" class="form-control"
+                           placeholder="Cerca per nome o specializzazione..." onkeyup="filtraMedici()">
+                </div>
+
+                <table class="table table-hover table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:60px">ID</th>
+                            <th>Nominativo</th>
+                            <th>Specializzazione</th>
+                            <th style="width:120px">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabella-medici"></tbody>
+                </table>
+            </div>
+
+            <!-- ════ PAZIENTI ════ -->
+            <div class="tab-pane fade" id="pane-pazienti">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0 text-primary">Gestione Pazienti</h5>
+                    <button class="btn btn-outline-success btn-sm" onclick="scaricaCSV()">
+                        Scarica Pazienti CSV
+                    </button>
+                </div>
+
+                <div class="form-sezione">
+                    <h6 class="fw-semibold mb-3 text-secondary">Nuovo Paziente</h6>
+                    <form onsubmit="aggiungiPaziente(event)">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <input type="text" id="nome-paziente" class="form-control" placeholder="Nome" required>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" id="cognome-paziente" class="form-control" placeholder="Cognome" required>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" id="cf-paziente" class="form-control" placeholder="Codice Fiscale" required>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="email" id="email-paziente" class="form-control" placeholder="Email" required>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="text" id="tel-paziente" class="form-control" placeholder="Telefono" required>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary fw-semibold px-4">
+                                    Registra Paziente
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="input-group mb-3" style="max-width:400px">
+                    <span class="input-group-text bg-white">🔍</span>
+                    <input type="text" id="cercaPaziente" class="form-control"
+                           placeholder="Cerca per nome o codice fiscale..." onkeyup="filtraPazienti()">
+                </div>
+
+                <table class="table table-hover table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Cognome</th>
+                            <th>Codice Fiscale</th>
+                            <th>Email</th>
+                            <th style="width:120px">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabella-pazienti"></tbody>
+                </table>
+            </div>
+
+        </div><!-- /tab-content -->
+    </div><!-- /container -->
+</div><!-- /sezione-app -->
+
+<!-- ═══════════════════════ MODAL: Dettaglio Turno (dal calendario) ═══════════════════════ -->
+<div class="modal fade" id="modalDettaglioTurno" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="modal-det-header">
+                <h5 class="modal-title fw-bold">Dettaglio Appuntamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-borderless mb-0">
+                    <tbody>
+                        <tr><th scope="row" style="width:110px">Paziente</th><td id="det-paziente" class="fw-semibold"></td></tr>
+                        <tr><th scope="row">Medico</th><td id="det-medico"></td></tr>
+                        <tr><th scope="row">Stanza</th><td id="det-stanza"></td></tr>
+                        <tr><th scope="row">Data e Ora</th><td id="det-orario"></td></tr>
+                        <tr><th scope="row">Durata</th><td>30 minuti</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button class="btn btn-outline-danger btn-sm fw-semibold"
+                        id="btn-elimina-da-calendario"
+                        onclick="eliminaTurnoDalCalendario()">
+                    Elimina appuntamento
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Chiudi</button>
+            </div>
+        </div>
     </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- ═══════════════════════ MODAL: Modifica Paziente ═══════════════════════ -->
 <div class="modal fade" id="modalModifica" tabindex="-1" aria-hidden="true">
-<div class="modal-dialog">
-    <div class="modal-content">
-    <div class="modal-header bg-warning">
-        <h5 class="modal-title">✏️ Modifica Paziente</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-    </div>
-    <div class="modal-body">
-        <form id="formModificaPaziente">
-        <input type="hidden" id="edit-id">
-        <input type="text" id="edit-nome" class="form-control mb-2" placeholder="Nome">
-        <input type="text" id="edit-cognome" class="form-control mb-2" placeholder="Cognome">
-        <input type="text" id="edit-cf" class="form-control mb-2" placeholder="Codice Fiscale">
-        <input type="email" id="edit-email" class="form-control mb-2" placeholder="Email">
-        <input type="text" id="edit-tel" class="form-control mb-2" placeholder="Telefono">
-        <button type="submit" class="btn btn-primary w-100">Salva Modifiche</button>
-        </form>
-    </div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title fw-bold">Modifica Paziente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formModificaPaziente">
+                    <input type="hidden" id="edit-id">
+                    <input type="text" id="edit-nome" class="form-control mb-2" placeholder="Nome">
+                    <input type="text" id="edit-cognome" class="form-control mb-2" placeholder="Cognome">
+                    <input type="text" id="edit-cf" class="form-control mb-2" placeholder="Codice Fiscale">
+                    <input type="email" id="edit-email" class="form-control mb-2" placeholder="Email">
+                    <input type="text" id="edit-tel" class="form-control mb-2" placeholder="Telefono">
+                    <button type="submit" class="btn btn-primary w-100 mt-1 fw-semibold">Salva Modifiche</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
-</div>
+
+<!-- ═══════════════════════ MODAL: Modifica Medico ═══════════════════════ -->
 <div class="modal fade" id="modalModificaMedico" tabindex="-1" aria-hidden="true">
-<div class="modal-dialog">
-    <div class="modal-content">
-    <div class="modal-header bg-warning">
-        <h5 class="modal-title">✏️ Modifica Medico</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-    </div>
-    <div class="modal-body">
-        <form id="formModificaMedico">
-        <input type="hidden" id="edit-medico-id">
-        
-        <label>Nome:</label>
-        <input type="text" id="edit-medico-nome" class="form-control mb-2">
-        
-        <label>Cognome:</label>
-        <input type="text" id="edit-medico-cognome" class="form-control mb-2">
-        
-        <label>Specializzazione:</label>
-        <input type="text" id="edit-medico-specializzazione" class="form-control mb-2">
-        
-        <button type="submit" class="btn btn-primary w-100 mt-3">Salva Modifiche</button>
-        </form>
-    </div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title fw-bold">Modifica Medico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formModificaMedico">
+                    <input type="hidden" id="edit-medico-id">
+                    <label class="form-label small fw-semibold">Nome</label>
+                    <input type="text" id="edit-medico-nome" class="form-control mb-2">
+                    <label class="form-label small fw-semibold">Cognome</label>
+                    <input type="text" id="edit-medico-cognome" class="form-control mb-2">
+                    <label class="form-label small fw-semibold">Specializzazione</label>
+                    <input type="text" id="edit-medico-specializzazione" class="form-control mb-2">
+                    <button type="submit" class="btn btn-primary w-100 mt-2 fw-semibold">Salva Modifiche</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- ═══════════════════════ TOAST ═══════════════════════ -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+    <div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div id="toast-body" class="toast-body fw-semibold"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/script.js"></script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 import csv
 import os
+from datetime import datetime, timedelta
 from io import StringIO
 
 from dotenv import load_dotenv
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from . import auth, models, schemas
 from .database import SessionLocal, engine
@@ -337,6 +338,65 @@ def esporta_turni(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=agenda_turni.csv"},
     )
+
+
+# --- CALENDARIO ---
+
+_COLORS = [
+    "#0d6efd", "#198754", "#dc3545", "#fd7e14",
+    "#6f42c1", "#20c997", "#d63384", "#0dcaf0",
+]
+
+
+@app.get("/turni/calendario")
+def turni_calendario(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    turni = (
+        db.query(models.Turno)
+        .options(
+            joinedload(models.Turno.medico_assegnato),
+            joinedload(models.Turno.paziente_assegnato),
+        )
+        .all()
+    )
+
+    events = []
+    for t in turni:
+        medico = t.medico_assegnato
+        paziente = t.paziente_assegnato
+        nome_medico = (
+            f"Dott. {medico.nome} {medico.cognome}" if medico else f"Medico #{t.medico_id}"
+        )
+        nome_paziente = (
+            f"{paziente.nome} {paziente.cognome}" if paziente else f"Paziente #{t.paziente_id}"
+        )
+        colore = _COLORS[t.medico_id % len(_COLORS)]
+
+        try:
+            start_dt = datetime.fromisoformat(t.orario)
+            end_dt = start_dt + timedelta(minutes=30)
+        except (ValueError, TypeError):
+            continue
+
+        events.append(
+            {
+                "id": str(t.id),
+                "title": nome_paziente,
+                "start": start_dt.isoformat(),
+                "end": end_dt.isoformat(),
+                "backgroundColor": colore,
+                "borderColor": colore,
+                "extendedProps": {
+                    "stanza": t.stanza,
+                    "medico": nome_medico,
+                    "paziente": nome_paziente,
+                    "turno_id": t.id,
+                },
+            }
+        )
+    return events
 
 
 # --- FRONTEND ---

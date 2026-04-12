@@ -1,48 +1,71 @@
-// --- UTILITY ---
+// ═══════════════════════════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════════════════════════
 
 function getToken() {
     return localStorage.getItem('token');
 }
 
-function authHeaders(extraHeaders = {}) {
-    return {
-        'Authorization': `Bearer ${getToken()}`,
-        ...extraHeaders
-    };
+function authHeaders(extra = {}) {
+    return { 'Authorization': `Bearer ${getToken()}`, ...extra };
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str ?? '')));
+    return d.innerHTML;
+}
+
+function formatOrario(iso) {
+    try {
+        return new Date(iso).toLocaleString('it-IT', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    } catch {
+        return iso;
+    }
 }
 
 function mostraNotifica(messaggio, successo = true) {
-    const toastElement = document.getElementById('liveToast');
-    const toastBody = document.getElementById('toast-body');
-
-    toastElement.classList.remove('bg-success', 'bg-danger');
-    toastElement.classList.add(successo ? 'bg-success' : 'bg-danger');
-
-    toastBody.innerText = messaggio;
-
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
+    const el = document.getElementById('liveToast');
+    const body = document.getElementById('toast-body');
+    el.classList.remove('bg-success', 'bg-danger');
+    el.classList.add(successo ? 'bg-success' : 'bg-danger');
+    body.innerText = messaggio;
+    new bootstrap.Toast(el, { delay: 3500 }).show();
 }
 
-function escapeHtml(testo) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(testo));
-    return div.innerHTML;
-}
-
-// --- INTERFACCIA ---
+// ═══════════════════════════════════════════════════════
+//  AUTENTICAZIONE
+// ═══════════════════════════════════════════════════════
 
 function aggiornaInterfaccia() {
-    const token = getToken();
-    if (token) {
+    if (getToken()) {
         document.getElementById('sezione-login').style.display = 'none';
         document.getElementById('sezione-app').style.display = 'block';
-        caricaDati();
-        caricaPazienti();
-        caricaStatistiche();
+        caricaTutto();
+        // Piccolo delay per permettere al DOM di renderizzare prima di FullCalendar
+        setTimeout(initCalendario, 80);
     } else {
-        document.getElementById('sezione-login').style.display = 'block';
+        document.getElementById('sezione-login').style.display = 'flex';
         document.getElementById('sezione-app').style.display = 'none';
+    }
+}
+
+async function faiLogin(e) {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('username', document.getElementById('user').value);
+    fd.append('password', document.getElementById('pass').value);
+
+    const res = await fetch('/login', { method: 'POST', body: fd });
+    if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('token', data.access_token);
+        aggiornaInterfaccia();
+    } else {
+        mostraNotifica('Credenziali errate. Riprova.', false);
     }
 }
 
@@ -51,170 +74,43 @@ function logout() {
     location.reload();
 }
 
-// --- LOGIN ---
+// ═══════════════════════════════════════════════════════
+//  CARICAMENTO DATI
+// ═══════════════════════════════════════════════════════
 
-async function faiLogin(e) {
-    e.preventDefault();
-    const formData = new FormData();
-    formData.append('username', document.getElementById('user').value);
-    formData.append('password', document.getElementById('pass').value);
+// Mappe globali id → oggetto per lookup nei turni
+let _medicoMap = {};
+let _pazienteMap = {};
 
-    const res = await fetch('/login', {
-        method: 'POST',
-        body: formData
-    });
-
-    if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('token', data.access_token);
-        aggiornaInterfaccia();
-    } else {
-        mostraNotifica("Accesso negato: credenziali errate.", false);
-    }
+async function caricaTutto() {
+    await Promise.all([caricaDati(), caricaPazienti(), caricaStatistiche()]);
 }
-
-// --- ELIMINA GENERICO (medici e pazienti) ---
-
-async function eliminaRecord(tipo, id) {
-    if (!confirm("Sei sicura di voler eliminare questo record?")) return;
-
-    const res = await fetch(`/${tipo}/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders()
-    });
-
-    if (res.ok) {
-        mostraNotifica("Eliminato con successo.");
-        caricaDati();
-        caricaPazienti();
-    } else {
-        const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore durante l'eliminazione.", false);
-    }
-}
-
-// --- MEDICI ---
-
-async function aggiungiMedico(event) {
-    event.preventDefault();
-    const dati = {
-        nome: document.getElementById('nome-medico').value,
-        cognome: document.getElementById('cognome-medico').value,
-        specializzazione: document.getElementById('spec-medico').value
-    };
-
-    const res = await fetch('/medici/', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(dati)
-    });
-
-    if (res.ok) {
-        mostraNotifica("Medico registrato con successo.");
-        caricaDati();
-        event.target.reset();
-    } else {
-        const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nella registrazione del medico.", false);
-    }
-}
-
-// --- TURNI ---
-
-async function aggiungiTurno(e) {
-    e.preventDefault();
-    const dati = {
-        orario: document.getElementById('orario-turno').value,
-        stanza: document.getElementById('stanza-turno').value,
-        medico_id: parseInt(document.getElementById('id-medico-turno').value),
-        paziente_id: parseInt(document.getElementById('id-paziente-turno').value)
-    };
-
-    const res = await fetch('/turni/', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(dati)
-    });
-
-    if (res.ok) {
-        mostraNotifica("Turno assegnato con successo.");
-        caricaDati();
-        e.target.reset();
-    } else {
-        const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nell'assegnazione del turno.", false);
-    }
-}
-
-async function eliminaTurno(id) {
-    if (!confirm("Vuoi davvero cancellare questo appuntamento?")) return;
-
-    const res = await fetch(`/turni/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders()
-    });
-
-    if (res.ok) {
-        mostraNotifica("Appuntamento rimosso.");
-        caricaDati();
-    } else {
-        const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nella cancellazione.", false);
-    }
-}
-
-// --- PAZIENTI ---
-
-async function aggiungiPaziente(e) {
-    e.preventDefault();
-    const dati = {
-        nome: document.getElementById('nome-paziente').value,
-        cognome: document.getElementById('cognome-paziente').value,
-        codice_fiscale: document.getElementById('cf-paziente').value,
-        email: document.getElementById('email-paziente').value,
-        telefono: document.getElementById('tel-paziente').value
-    };
-
-    const res = await fetch('/pazienti', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(dati)
-    });
-
-    if (res.ok) {
-        mostraNotifica("Paziente registrato con successo.");
-        caricaPazienti();
-        e.target.reset();
-    } else {
-        const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nella registrazione del paziente.", false);
-    }
-}
-
-// --- CARICAMENTO DATI ---
 
 async function caricaDati() {
     const headers = authHeaders();
 
-    // Carica Medici
+    // Medici
     const resM = await fetch('/medici/', { headers });
     if (!resM.ok) return;
     const medici = await resM.json();
 
+    _medicoMap = {};
     const tbodyM = document.getElementById('tabella-medici');
-    const select = document.getElementById('id-medico-turno');
+    const selectM = document.getElementById('id-medico-turno');
     tbodyM.innerHTML = '';
-    select.innerHTML = '<option value="" disabled selected>Seleziona Medico...</option>';
+    selectM.innerHTML = '<option value="" disabled selected>Seleziona medico...</option>';
 
     medici.forEach(m => {
+        _medicoMap[m.id] = { nome: `${m.nome} ${m.cognome}`, spec: m.specializzazione };
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${escapeHtml(String(m.id))}</td>
-            <td>${escapeHtml(m.nome)} ${escapeHtml(m.cognome)}</td>
-            <td>${escapeHtml(m.specializzazione)}</td>
+            <td class="text-muted small">${escapeHtml(m.id)}</td>
+            <td class="fw-semibold">${escapeHtml(m.nome)} ${escapeHtml(m.cognome)}</td>
+            <td><span class="badge bg-info text-dark">${escapeHtml(m.specializzazione)}</span></td>
             <td>
                 <button class="btn btn-outline-warning btn-sm me-1"
-                    onclick="preparaModificaMedico(${m.id}, '${escapeHtml(m.nome)}', '${escapeHtml(m.cognome)}', '${escapeHtml(m.specializzazione || '')}')">
+                    onclick="preparaModificaMedico(${m.id},'${escapeHtml(m.nome)}','${escapeHtml(m.cognome)}','${escapeHtml(m.specializzazione || '')}')">
                     Modifica
                 </button>
                 <button class="btn btn-outline-danger btn-sm"
@@ -226,11 +122,13 @@ async function caricaDati() {
 
         const opt = document.createElement('option');
         opt.value = m.id;
-        opt.textContent = `Dott. ${m.nome} ${m.cognome}`;
-        select.appendChild(opt);
+        opt.textContent = `Dott. ${m.nome} ${m.cognome} — ${m.specializzazione}`;
+        selectM.appendChild(opt);
     });
 
-    // Carica Turni
+    aggiornaLegendaCalendario(medici);
+
+    // Turni
     const resT = await fetch('/turni/', { headers });
     if (!resT.ok) return;
     const turni = await resT.json();
@@ -239,12 +137,15 @@ async function caricaDati() {
     tbodyT.innerHTML = '';
 
     turni.forEach(t => {
+        const nomeMedico = _medicoMap[t.medico_id]?.nome ?? `ID ${t.medico_id}`;
+        const nomePaz    = _pazienteMap[t.paziente_id]?.nome ?? `ID ${t.paziente_id}`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${escapeHtml(t.orario)}</td>
+            <td>${escapeHtml(formatOrario(t.orario))}</td>
             <td>${escapeHtml(t.stanza)}</td>
-            <td>${escapeHtml(String(t.medico_id))}</td>
-            <td>${escapeHtml(String(t.paziente_id))}</td>
+            <td>Dott. ${escapeHtml(nomeMedico)}</td>
+            <td>${escapeHtml(nomePaz)}</td>
             <td>
                 <button class="btn btn-outline-danger btn-sm"
                     onclick="eliminaTurno(${t.id})">
@@ -253,6 +154,9 @@ async function caricaDati() {
             </td>`;
         tbodyT.appendChild(tr);
     });
+
+    // Aggiorna il calendario se già inizializzato
+    if (calendario) calendario.refetchEvents();
 }
 
 async function caricaPazienti() {
@@ -260,22 +164,24 @@ async function caricaPazienti() {
     if (!res.ok) return;
     const pazienti = await res.json();
 
+    _pazienteMap = {};
     const tbody = document.getElementById('tabella-pazienti');
-    const selectPaz = document.getElementById('id-paziente-turno');
-
+    const selectP = document.getElementById('id-paziente-turno');
     tbody.innerHTML = '';
-    if (selectPaz) {
-        selectPaz.innerHTML = '<option value="" disabled selected>Seleziona Paziente...</option>';
-    }
+    if (selectP) selectP.innerHTML = '<option value="" disabled selected>Seleziona paziente...</option>';
 
     pazienti.forEach(p => {
+        _pazienteMap[p.id] = { nome: `${p.nome} ${p.cognome}` };
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${escapeHtml(p.nome)} ${escapeHtml(p.cognome)}</td>
-            <td>${escapeHtml(p.codice_fiscale)}</td>
+            <td class="fw-semibold">${escapeHtml(p.nome)}</td>
+            <td>${escapeHtml(p.cognome)}</td>
+            <td><code>${escapeHtml(p.codice_fiscale)}</code></td>
+            <td>${escapeHtml(p.email)}</td>
             <td>
                 <button class="btn btn-outline-warning btn-sm me-1"
-                    onclick="preparaModifica(${p.id}, '${escapeHtml(p.nome)}', '${escapeHtml(p.cognome)}', '${escapeHtml(p.codice_fiscale)}', '${escapeHtml(p.email)}', '${escapeHtml(p.telefono)}')">
+                    onclick="preparaModifica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono)}')">
                     Modifica
                 </button>
                 <button class="btn btn-outline-danger btn-sm"
@@ -285,150 +191,412 @@ async function caricaPazienti() {
             </td>`;
         tbody.appendChild(tr);
 
-        if (selectPaz) {
+        if (selectP) {
             const opt = document.createElement('option');
             opt.value = p.id;
             opt.textContent = `${p.nome} ${p.cognome}`;
-            selectPaz.appendChild(opt);
+            selectP.appendChild(opt);
         }
     });
 }
 
-// --- STATISTICHE ---
-
 async function caricaStatistiche() {
     const res = await fetch('/statistiche', { headers: authHeaders() });
     if (!res.ok) return;
-    const dati = await res.json();
-    document.getElementById('stat-medici').innerText = dati.medici;
-    document.getElementById('stat-pazienti').innerText = dati.pazienti;
-    document.getElementById('stat-turni').innerText = dati.turni;
+    const d = await res.json();
+    document.getElementById('stat-medici').innerText   = d.medici;
+    document.getElementById('stat-pazienti').innerText = d.pazienti;
+    document.getElementById('stat-turni').innerText    = d.turni;
 }
 
-// --- FILTRI ---
+// ═══════════════════════════════════════════════════════
+//  CALENDARIO  (FullCalendar 6)
+// ═══════════════════════════════════════════════════════
 
-function filtraPazienti() {
-    const input = document.getElementById("cercaPaziente").value.toLowerCase();
-    const righe = document.getElementById("tabella-pazienti").getElementsByTagName("tr");
-    for (const riga of righe) {
-        riga.style.display = riga.innerText.toLowerCase().includes(input) ? "" : "none";
+let calendario = null;
+let _turnoSelezionatoId = null;
+
+const _COLORS = [
+    '#0d6efd','#198754','#dc3545','#fd7e14',
+    '#6f42c1','#20c997','#d63384','#0dcaf0',
+];
+
+function initCalendario() {
+    const el = document.getElementById('calendario-clinica');
+    if (!el || calendario) return;
+
+    calendario = new FullCalendar.Calendar(el, {
+        locale: 'it',
+        initialView: 'timeGridWeek',
+        headerToolbar: {
+            left:   'prev,next today',
+            center: 'title',
+            right:  'dayGridMonth,timeGridWeek,timeGridDay',
+        },
+        buttonText: {
+            today:    'Oggi',
+            month:    'Mese',
+            week:     'Settimana',
+            day:      'Giorno',
+        },
+        slotMinTime: '07:00:00',
+        slotMaxTime: '21:00:00',
+        allDaySlot: false,
+        nowIndicator: true,
+        height: 720,
+        businessHours: {
+            daysOfWeek: [1, 2, 3, 4, 5],
+            startTime: '08:00',
+            endTime:   '19:00',
+        },
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+
+        // Fonte eventi: chiama il nostro endpoint
+        events: function(fetchInfo, successCb, failureCb) {
+            fetch('/turni/calendario', { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(ev => successCb(ev))
+                .catch(err => failureCb(err));
+        },
+
+        // Click su un evento → mostra dettaglio
+        eventClick: function(info) {
+            mostraDettaglioTurno(info.event);
+        },
+
+        // Click su uno slot vuoto → pre-compila il form turni e apre il tab
+        dateClick: function(info) {
+            // Porta nel formato "YYYY-MM-DDTHH:MM" per il campo datetime-local
+            const iso = info.dateStr.slice(0, 16);
+            document.getElementById('orario-turno').value = iso;
+            bootstrap.Tab.getOrCreateInstance(
+                document.getElementById('tab-turni')
+            ).show();
+            mostraNotifica(`Data pre-impostata: ${formatOrario(iso)}`, true);
+        },
+
+        // Stile evento: evidenzia lieve ombra
+        eventDidMount: function(info) {
+            info.el.style.borderRadius = '6px';
+            info.el.style.boxShadow = '0 1px 4px rgba(0,0,0,.25)';
+        },
+    });
+
+    calendario.render();
+}
+
+function aggiornaLegendaCalendario(medici) {
+    const contenitore = document.getElementById('legenda-medici');
+    if (!contenitore) return;
+    contenitore.innerHTML = '';
+    medici.forEach(m => {
+        const colore = _COLORS[m.id % _COLORS.length];
+        const span = document.createElement('span');
+        span.className = 'd-flex align-items-center gap-1';
+        span.innerHTML = `<span class="dot" style="background:${colore};width:10px;height:10px;border-radius:50%;display:inline-block"></span>
+                          Dott. ${escapeHtml(m.cognome)}`;
+        contenitore.appendChild(span);
+    });
+}
+
+function mostraDettaglioTurno(event) {
+    _turnoSelezionatoId = event.extendedProps.turno_id;
+
+    document.getElementById('det-paziente').textContent = event.extendedProps.paziente ?? '—';
+    document.getElementById('det-medico').textContent   = event.extendedProps.medico   ?? '—';
+    document.getElementById('det-stanza').textContent   = event.extendedProps.stanza   ?? '—';
+    document.getElementById('det-orario').textContent   = formatOrario(event.startStr);
+
+    const header = document.getElementById('modal-det-header');
+    header.style.background = event.backgroundColor ?? '#0d6efd';
+    header.style.color = '#fff';
+    header.querySelector('.btn-close').classList.add('btn-close-white');
+
+    new bootstrap.Modal(document.getElementById('modalDettaglioTurno')).show();
+}
+
+async function eliminaTurnoDalCalendario() {
+    if (!_turnoSelezionatoId) return;
+    if (!confirm('Vuoi davvero cancellare questo appuntamento?')) return;
+
+    const res = await fetch(`/turni/${_turnoSelezionatoId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('modalDettaglioTurno'))?.hide();
+
+    if (res.ok) {
+        mostraNotifica('Appuntamento eliminato.');
+        caricaDati();
+        caricaStatistiche();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || "Errore nell'eliminazione.", false);
     }
+    _turnoSelezionatoId = null;
 }
 
-function filtraMedici() {
-    const input = document.getElementById("cercaMedico").value.toLowerCase();
-    const righe = document.getElementById("tabella-medici").getElementsByTagName("tr");
-    for (const riga of righe) {
-        riga.style.display = riga.innerText.toLowerCase().includes(input) ? "" : "none";
+// Refresh calendario quando si torna al tab (ridisegna layout correttamente)
+document.addEventListener('DOMContentLoaded', () => {
+    const tabCal = document.getElementById('tab-calendario');
+    if (tabCal) {
+        tabCal.addEventListener('shown.bs.tab', () => {
+            if (calendario) {
+                calendario.updateSize();
+                calendario.refetchEvents();
+            }
+        });
     }
-}
+});
 
-// --- MODIFICA PAZIENTE ---
+// ═══════════════════════════════════════════════════════
+//  MEDICI
+// ═══════════════════════════════════════════════════════
 
-async function preparaModifica(id, nome, cognome, cf, email, tel) {
-    document.getElementById('edit-id').value = id;
-    document.getElementById('edit-nome').value = nome;
-    document.getElementById('edit-cognome').value = cognome;
-    document.getElementById('edit-cf').value = cf;
-    document.getElementById('edit-email').value = email;
-    document.getElementById('edit-tel').value = tel;
-    new bootstrap.Modal(document.getElementById('modalModifica')).show();
-}
-
-document.getElementById('formModificaPaziente').onsubmit = async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('edit-id').value;
+async function aggiungiMedico(event) {
+    event.preventDefault();
     const dati = {
-        nome: document.getElementById('edit-nome').value,
-        cognome: document.getElementById('edit-cognome').value,
-        codice_fiscale: document.getElementById('edit-cf').value,
-        email: document.getElementById('edit-email').value,
-        telefono: document.getElementById('edit-tel').value
+        nome: document.getElementById('nome-medico').value,
+        cognome: document.getElementById('cognome-medico').value,
+        specializzazione: document.getElementById('spec-medico').value,
     };
 
-    const res = await fetch(`/pazienti/${id}`, {
-        method: 'PUT',
+    const res = await fetch('/medici/', {
+        method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(dati)
+        body: JSON.stringify(dati),
     });
 
     if (res.ok) {
-        mostraNotifica("Paziente aggiornato.");
-        bootstrap.Modal.getInstance(document.getElementById('modalModifica')).hide();
-        caricaPazienti();
+        mostraNotifica('Medico registrato con successo.');
+        event.target.reset();
+        caricaDati();
+        caricaStatistiche();
     } else {
         const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nell'aggiornamento.", false);
+        mostraNotifica(err.detail || 'Errore nella registrazione del medico.', false);
     }
-};
-
-// --- MODIFICA MEDICO ---
+}
 
 async function preparaModificaMedico(id, nome, cognome, specializzazione) {
-    document.getElementById('edit-medico-id').value = id;
-    document.getElementById('edit-medico-nome').value = nome;
-    document.getElementById('edit-medico-cognome').value = cognome;
+    document.getElementById('edit-medico-id').value             = id;
+    document.getElementById('edit-medico-nome').value          = nome;
+    document.getElementById('edit-medico-cognome').value       = cognome;
     document.getElementById('edit-medico-specializzazione').value = specializzazione;
     new bootstrap.Modal(document.getElementById('modalModificaMedico')).show();
 }
 
-document.getElementById('formModificaMedico').onsubmit = async (e) => {
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('formModificaMedico').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-medico-id').value;
+        const dati = {
+            nome: document.getElementById('edit-medico-nome').value,
+            cognome: document.getElementById('edit-medico-cognome').value,
+            specializzazione: document.getElementById('edit-medico-specializzazione').value,
+        };
+        const res = await fetch(`/medici/${id}`, {
+            method: 'PUT',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(dati),
+        });
+        if (res.ok) {
+            mostraNotifica('Medico aggiornato.');
+            bootstrap.Modal.getInstance(document.getElementById('modalModificaMedico'))?.hide();
+            caricaDati();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            mostraNotifica(err.detail || "Errore.", false);
+        }
+    };
+});
+
+// ═══════════════════════════════════════════════════════
+//  TURNI
+// ═══════════════════════════════════════════════════════
+
+async function aggiungiTurno(e) {
     e.preventDefault();
-    const id = document.getElementById('edit-medico-id').value;
     const dati = {
-        nome: document.getElementById('edit-medico-nome').value,
-        cognome: document.getElementById('edit-medico-cognome').value,
-        specializzazione: document.getElementById('edit-medico-specializzazione').value
+        orario:      document.getElementById('orario-turno').value,
+        stanza:      document.getElementById('stanza-turno').value,
+        medico_id:   parseInt(document.getElementById('id-medico-turno').value),
+        paziente_id: parseInt(document.getElementById('id-paziente-turno').value),
     };
 
-    const res = await fetch(`/medici/${id}`, {
-        method: 'PUT',
+    const res = await fetch('/turni/', {
+        method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(dati)
+        body: JSON.stringify(dati),
     });
 
     if (res.ok) {
-        mostraNotifica("Medico aggiornato con successo.");
-        bootstrap.Modal.getInstance(document.getElementById('modalModificaMedico')).hide();
+        mostraNotifica('Appuntamento creato con successo.');
+        e.target.reset();
         caricaDati();
+        caricaStatistiche();
+        // Torna al calendario per vedere l'evento appena creato
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-calendario')).show();
     } else {
         const err = await res.json().catch(() => ({}));
-        mostraNotifica(err.detail || "Errore nell'aggiornamento.", false);
+        mostraNotifica(err.detail || "Errore nella creazione.", false);
     }
-};
+}
 
-// --- ESPORTAZIONE CSV (con token) ---
+async function eliminaTurno(id) {
+    if (!confirm('Vuoi davvero cancellare questo appuntamento?')) return;
+
+    const res = await fetch(`/turni/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Appuntamento eliminato.');
+        caricaDati();
+        caricaStatistiche();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || "Errore.", false);
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PAZIENTI
+// ═══════════════════════════════════════════════════════
+
+async function aggiungiPaziente(e) {
+    e.preventDefault();
+    const dati = {
+        nome:           document.getElementById('nome-paziente').value,
+        cognome:        document.getElementById('cognome-paziente').value,
+        codice_fiscale: document.getElementById('cf-paziente').value,
+        email:          document.getElementById('email-paziente').value,
+        telefono:       document.getElementById('tel-paziente').value,
+    };
+
+    const res = await fetch('/pazienti', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(dati),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Paziente registrato con successo.');
+        e.target.reset();
+        caricaPazienti();
+        caricaStatistiche();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore nella registrazione.', false);
+    }
+}
+
+async function preparaModifica(id, nome, cognome, cf, email, tel) {
+    document.getElementById('edit-id').value      = id;
+    document.getElementById('edit-nome').value    = nome;
+    document.getElementById('edit-cognome').value = cognome;
+    document.getElementById('edit-cf').value      = cf;
+    document.getElementById('edit-email').value   = email;
+    document.getElementById('edit-tel').value     = tel;
+    new bootstrap.Modal(document.getElementById('modalModifica')).show();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('formModificaPaziente').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const dati = {
+            nome:           document.getElementById('edit-nome').value,
+            cognome:        document.getElementById('edit-cognome').value,
+            codice_fiscale: document.getElementById('edit-cf').value,
+            email:          document.getElementById('edit-email').value,
+            telefono:       document.getElementById('edit-tel').value,
+        };
+        const res = await fetch(`/pazienti/${id}`, {
+            method: 'PUT',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(dati),
+        });
+        if (res.ok) {
+            mostraNotifica('Paziente aggiornato.');
+            bootstrap.Modal.getInstance(document.getElementById('modalModifica'))?.hide();
+            caricaPazienti();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            mostraNotifica(err.detail || "Errore.", false);
+        }
+    };
+});
+
+// ═══════════════════════════════════════════════════════
+//  ELIMINA GENERICO
+// ═══════════════════════════════════════════════════════
+
+async function eliminaRecord(tipo, id) {
+    if (!confirm(`Sei sicura di voler eliminare questo record?`)) return;
+
+    const res = await fetch(`/${tipo}/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Eliminato con successo.');
+        caricaDati();
+        caricaPazienti();
+        caricaStatistiche();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || "Errore durante l'eliminazione.", false);
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  FILTRI
+// ═══════════════════════════════════════════════════════
+
+function filtraPazienti() {
+    const q = document.getElementById('cercaPaziente').value.toLowerCase();
+    for (const tr of document.getElementById('tabella-pazienti').rows) {
+        tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+    }
+}
+
+function filtraMedici() {
+    const q = document.getElementById('cercaMedico').value.toLowerCase();
+    for (const tr of document.getElementById('tabella-medici').rows) {
+        tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  EXPORT CSV
+// ═══════════════════════════════════════════════════════
 
 async function scaricaCSV() {
     const res = await fetch('/esporta-pazienti', { headers: authHeaders() });
-    if (!res.ok) {
-        mostraNotifica("Errore nel download del CSV.", false);
-        return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'lista_pazienti.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!res.ok) { mostraNotifica('Errore nel download.', false); return; }
+    _downloadBlob(await res.blob(), 'lista_pazienti.csv');
 }
 
 async function scaricaCSVTurni() {
     const res = await fetch('/esporta-turni', { headers: authHeaders() });
-    if (!res.ok) {
-        mostraNotifica("Errore nel download del CSV.", false);
-        return;
-    }
-    const blob = await res.blob();
+    if (!res.ok) { mostraNotifica('Errore nel download.', false); return; }
+    _downloadBlob(await res.blob(), 'agenda_turni.csv');
+}
+
+function _downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'agenda_turni.csv';
-    a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
 }
 
-// --- AVVIO ---
+// ═══════════════════════════════════════════════════════
+//  AVVIO
+// ═══════════════════════════════════════════════════════
 
 aggiornaInterfaccia();
