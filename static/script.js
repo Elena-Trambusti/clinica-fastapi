@@ -180,8 +180,12 @@ async function caricaPazienti() {
             <td><code>${escapeHtml(p.codice_fiscale)}</code></td>
             <td>${escapeHtml(p.email)}</td>
             <td>
+                <button class="btn btn-primary btn-sm me-1 fw-semibold"
+                    onclick="apriCartellaClinica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono || '')}')">
+                    Cartella
+                </button>
                 <button class="btn btn-outline-warning btn-sm me-1"
-                    onclick="preparaModifica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono)}')">
+                    onclick="preparaModifica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono || '')}')">
                     Modifica
                 </button>
                 <button class="btn btn-outline-danger btn-sm"
@@ -593,6 +597,213 @@ function _downloadBlob(blob, filename) {
     const a = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════
+//  CARTELLA CLINICA
+// ═══════════════════════════════════════════════════════
+
+let _pazienteCartellaId = null;
+
+function apriCartellaClinica(id, nome, cognome, cf, email, tel) {
+    _pazienteCartellaId = id;
+
+    document.getElementById('cartella-nome-paziente').textContent = `${nome} ${cognome}`;
+    document.getElementById('cartella-cf').textContent    = cf;
+    document.getElementById('cartella-email').textContent = email;
+    document.getElementById('cartella-tel').textContent   = tel || '—';
+
+    // Pre-imposta il paziente nel form di aggiunta visita
+    document.getElementById('visita-paziente-id').value = id;
+
+    // Popola select medici nel form visita
+    _popolaSelectMediciVisita('visita-medico-id');
+    _popolaSelectMediciVisita('mod-visita-medico-id');
+
+    // Resetta il form
+    document.getElementById('formAggiungiVisita').reset();
+    document.getElementById('visita-paziente-id').value = id;
+
+    // Chiude il collapse del form se era aperto
+    const collapseEl = document.getElementById('formNuovaVisita');
+    bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).hide();
+
+    // Apre il modal
+    new bootstrap.Modal(document.getElementById('modalCartella')).show();
+
+    // Carica le visite
+    caricaVisite(id);
+}
+
+function _popolaSelectMediciVisita(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const valoreAttuale = sel.value;
+    sel.innerHTML = '<option value="" disabled selected>Seleziona medico...</option>';
+    Object.entries(_medicoMap).forEach(([id, m]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = `Dott. ${m.nome} — ${m.spec}`;
+        sel.appendChild(opt);
+    });
+    if (valoreAttuale) sel.value = valoreAttuale;
+}
+
+async function caricaVisite(pazienteId) {
+    const timeline = document.getElementById('cartella-timeline');
+    timeline.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> Caricamento...</div>';
+
+    const res = await fetch(`/pazienti/${pazienteId}/visite`, { headers: authHeaders() });
+    if (!res.ok) {
+        timeline.innerHTML = '<div class="visita-vuota"><div>Errore nel caricamento.</div></div>';
+        return;
+    }
+    const visite = await res.json();
+
+    const titolo = document.getElementById('cartella-titolo-storico');
+    titolo.textContent = visite.length === 0
+        ? 'Storico Visite'
+        : `Storico Visite (${visite.length})`;
+
+    if (visite.length === 0) {
+        timeline.innerHTML = `
+            <div class="visita-vuota">
+                <div style="font-size:2.5rem">📋</div>
+                <div class="mt-2">Nessuna visita registrata per questo paziente.</div>
+                <div class="small mt-1">Clicca su "+ Aggiungi Visita" per inserire la prima.</div>
+            </div>`;
+        return;
+    }
+
+    timeline.innerHTML = '';
+    visite.forEach(v => {
+        timeline.appendChild(_creaCardVisita(v));
+    });
+}
+
+function _creaCardVisita(v) {
+    const card = document.createElement('div');
+    card.className = 'visita-card';
+    card.dataset.id = v.id;
+
+    const dataFormatted = formatOrario(v.data_visita);
+
+    card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <span class="badge bg-primary me-2">${dataFormatted}</span>
+                <span class="fw-semibold text-dark">${escapeHtml(v.nome_medico)}</span>
+            </div>
+            <div class="d-flex gap-1">
+                <button class="btn btn-outline-warning btn-sm"
+                    onclick="apriModificaVisita(${v.id},${v.paziente_id},${v.medico_id},'${v.data_visita}',
+                        '${escapeHtml(v.motivo)}','${escapeHtml(v.diagnosi)}','${escapeHtml(v.trattamento)}','${escapeHtml(v.note)}')">
+                    Modifica
+                </button>
+                <button class="btn btn-outline-danger btn-sm"
+                    onclick="eliminaVisita(${v.id})">
+                    Elimina
+                </button>
+            </div>
+        </div>
+        ${v.motivo     ? `<div class="mb-1"><div class="visita-label">Motivo</div><div>${escapeHtml(v.motivo)}</div></div>` : ''}
+        ${v.diagnosi   ? `<div class="mb-1"><div class="visita-label">Diagnosi</div><div>${escapeHtml(v.diagnosi)}</div></div>` : ''}
+        ${v.trattamento? `<div class="mb-1"><div class="visita-label">Trattamento</div><div>${escapeHtml(v.trattamento)}</div></div>` : ''}
+        ${v.note       ? `<div class="mb-0"><div class="visita-label">Note</div><div class="text-muted fst-italic">${escapeHtml(v.note)}</div></div>` : ''}
+    `;
+    return card;
+}
+
+async function inviaVisita(e) {
+    e.preventDefault();
+    const dati = {
+        paziente_id: parseInt(document.getElementById('visita-paziente-id').value),
+        medico_id:   parseInt(document.getElementById('visita-medico-id').value),
+        data_visita: document.getElementById('visita-data').value,
+        motivo:      document.getElementById('visita-motivo').value,
+        diagnosi:    document.getElementById('visita-diagnosi').value,
+        trattamento: document.getElementById('visita-trattamento').value,
+        note:        document.getElementById('visita-note').value,
+    };
+
+    const res = await fetch('/visite/', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(dati),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Visita registrata con successo.');
+        document.getElementById('formAggiungiVisita').reset();
+        document.getElementById('visita-paziente-id').value = _pazienteCartellaId;
+        bootstrap.Collapse.getOrCreateInstance(
+            document.getElementById('formNuovaVisita'), { toggle: false }
+        ).hide();
+        caricaVisite(_pazienteCartellaId);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore nel salvataggio.', false);
+    }
+}
+
+function apriModificaVisita(id, pazId, medId, data, motivo, diagnosi, trattamento, note) {
+    document.getElementById('mod-visita-id').value          = id;
+    document.getElementById('mod-visita-paziente-id').value = pazId;
+    document.getElementById('mod-visita-data').value        = data.slice(0, 16);
+    document.getElementById('mod-visita-motivo').value      = motivo;
+    document.getElementById('mod-visita-diagnosi').value    = diagnosi;
+    document.getElementById('mod-visita-trattamento').value = trattamento;
+    document.getElementById('mod-visita-note').value        = note;
+
+    _popolaSelectMediciVisita('mod-visita-medico-id');
+    document.getElementById('mod-visita-medico-id').value = medId;
+
+    new bootstrap.Modal(document.getElementById('modalModificaVisita')).show();
+}
+
+async function salvaModificaVisita() {
+    const id = document.getElementById('mod-visita-id').value;
+    const dati = {
+        paziente_id: parseInt(document.getElementById('mod-visita-paziente-id').value),
+        medico_id:   parseInt(document.getElementById('mod-visita-medico-id').value),
+        data_visita: document.getElementById('mod-visita-data').value,
+        motivo:      document.getElementById('mod-visita-motivo').value,
+        diagnosi:    document.getElementById('mod-visita-diagnosi').value,
+        trattamento: document.getElementById('mod-visita-trattamento').value,
+        note:        document.getElementById('mod-visita-note').value,
+    };
+
+    const res = await fetch(`/visite/${id}`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(dati),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Visita aggiornata.');
+        bootstrap.Modal.getInstance(document.getElementById('modalModificaVisita'))?.hide();
+        caricaVisite(_pazienteCartellaId);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore.', false);
+    }
+}
+
+async function eliminaVisita(id) {
+    if (!confirm('Vuoi eliminare questa visita dalla cartella clinica?')) return;
+
+    const res = await fetch(`/visite/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+
+    if (res.ok) {
+        mostraNotifica('Visita eliminata.');
+        caricaVisite(_pazienteCartellaId);
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore.', false);
+    }
 }
 
 // ═══════════════════════════════════════════════════════

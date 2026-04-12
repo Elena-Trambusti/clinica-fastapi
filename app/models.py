@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -13,6 +13,7 @@ class Medico(Base):
     specializzazione = Column(String, nullable=False)
 
     turni = relationship("Turno", back_populates="medico_assegnato")
+    visite = relationship("Visita", back_populates="medico")
 
 
 class Paziente(Base):
@@ -26,6 +27,7 @@ class Paziente(Base):
     telefono = Column(String)
 
     turni = relationship("Turno", back_populates="paziente_assegnato")
+    visite = relationship("Visita", back_populates="paziente")
 
 
 class Turno(Base):
@@ -39,6 +41,22 @@ class Turno(Base):
 
     medico_assegnato = relationship("Medico", back_populates="turni")
     paziente_assegnato = relationship("Paziente", back_populates="turni")
+
+
+class Visita(Base):
+    __tablename__ = "visite"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
+    medico_id = Column(Integer, ForeignKey("medici.id"), nullable=False)
+    data_visita = Column(String, nullable=False)
+    motivo = Column(String, default="")
+    diagnosi = Column(String, default="")
+    trattamento = Column(String, default="")
+    note = Column(Text, default="")
+
+    paziente = relationship("Paziente", back_populates="visite")
+    medico = relationship("Medico", back_populates="visite")
 
 
 class User(Base):

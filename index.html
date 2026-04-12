@@ -56,6 +56,59 @@
         .table th { background-color: #f8f9fa; font-weight: 600; font-size: .9rem; }
 
         .form-sezione { background: #f8f9fa; border-radius: .5rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+
+        /* ── Cartella Clinica ── */
+        .cartella-header {
+            background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+            color: #fff;
+            border-radius: .5rem .5rem 0 0;
+            padding: 1.25rem 1.5rem;
+        }
+        .cartella-timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+        .cartella-timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px; top: 4px; bottom: 4px;
+            width: 2px;
+            background: linear-gradient(to bottom, #0d6efd, #dee2e6);
+        }
+        .visita-card {
+            position: relative;
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-left: 4px solid #0d6efd;
+            border-radius: .5rem;
+            padding: 1rem 1.1rem;
+            margin-bottom: 1.1rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .visita-card::before {
+            content: '';
+            position: absolute;
+            left: -2.1rem;
+            top: 1rem;
+            width: 13px; height: 13px;
+            border-radius: 50%;
+            background: #0d6efd;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px #0d6efd;
+        }
+        .visita-label {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #6c757d;
+            margin-bottom: .15rem;
+        }
+        .visita-vuota {
+            text-align: center;
+            padding: 2.5rem 0;
+            color: #adb5bd;
+        }
     </style>
 </head>
 <body>
@@ -326,7 +379,7 @@
                             <th>Cognome</th>
                             <th>Codice Fiscale</th>
                             <th>Email</th>
-                            <th style="width:120px">Azioni</th>
+                            <th style="width:175px">Azioni</th>
                         </tr>
                     </thead>
                     <tbody id="tabella-pazienti"></tbody>
@@ -363,6 +416,147 @@
                     Elimina appuntamento
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Chiudi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ MODAL: Cartella Clinica ═══════════════════════ -->
+<div class="modal fade" id="modalCartella" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+
+            <!-- Header dinamico con i dati del paziente -->
+            <div class="cartella-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h4 class="fw-bold mb-1" id="cartella-nome-paziente">—</h4>
+                        <div class="d-flex flex-wrap gap-3 opacity-90 small mt-1">
+                            <span>CF: <strong id="cartella-cf">—</strong></span>
+                            <span>Email: <strong id="cartella-email">—</strong></span>
+                            <span>Tel: <strong id="cartella-tel">—</strong></span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white mt-1" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+
+            <div class="modal-body p-4">
+
+                <!-- Form aggiungi visita (collassabile) -->
+                <div class="mb-4">
+                    <button class="btn btn-primary fw-semibold" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#formNuovaVisita">
+                        + Aggiungi Visita
+                    </button>
+                </div>
+
+                <div class="collapse" id="formNuovaVisita">
+                    <div class="form-sezione border border-primary border-opacity-25 mb-4">
+                        <h6 class="fw-bold mb-3 text-primary">Nuova Visita Clinica</h6>
+                        <form id="formAggiungiVisita" onsubmit="inviaVisita(event)">
+                            <input type="hidden" id="visita-paziente-id">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Data e Ora Visita</label>
+                                    <input type="datetime-local" id="visita-data" class="form-control" required>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label small fw-semibold">Medico</label>
+                                    <select id="visita-medico-id" class="form-select" required>
+                                        <option value="" disabled selected>Seleziona medico...</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">Motivo della Visita</label>
+                                    <input type="text" id="visita-motivo" class="form-control" placeholder="Es. Visita di controllo, mal di gola...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Diagnosi</label>
+                                    <textarea id="visita-diagnosi" class="form-control" rows="3" placeholder="Diagnosi del medico..."></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Trattamento prescritto</label>
+                                    <textarea id="visita-trattamento" class="form-control" rows="3" placeholder="Farmaci, terapia..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">Note aggiuntive</label>
+                                    <textarea id="visita-note" class="form-control" rows="2" placeholder="Note libere del medico..."></textarea>
+                                </div>
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="submit" class="btn btn-success fw-semibold px-4">
+                                        Salva Visita
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-toggle="collapse" data-bs-target="#formNuovaVisita">
+                                        Annulla
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Timeline visite -->
+                <h6 class="fw-bold text-secondary mb-3" id="cartella-titolo-storico">Storico Visite</h6>
+                <div id="cartella-timeline" class="cartella-timeline">
+                    <div class="visita-vuota">
+                        <div style="font-size:2.5rem">📋</div>
+                        <div class="mt-2">Nessuna visita registrata per questo paziente.</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ MODAL: Modifica Visita ═══════════════════════ -->
+<div class="modal fade" id="modalModificaVisita" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">Modifica Visita</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formModificaVisita">
+                    <input type="hidden" id="mod-visita-id">
+                    <input type="hidden" id="mod-visita-paziente-id">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Data e Ora</label>
+                            <input type="datetime-local" id="mod-visita-data" class="form-control" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Medico</label>
+                            <select id="mod-visita-medico-id" class="form-select" required></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Motivo</label>
+                            <input type="text" id="mod-visita-motivo" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Diagnosi</label>
+                            <textarea id="mod-visita-diagnosi" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Trattamento</label>
+                            <textarea id="mod-visita-trattamento" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Note</label>
+                            <textarea id="mod-visita-note" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-primary fw-semibold px-4"
+                        onclick="salvaModificaVisita()">
+                    Salva Modifiche
+                </button>
             </div>
         </div>
     </div>

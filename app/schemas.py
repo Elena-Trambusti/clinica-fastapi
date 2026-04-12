@@ -90,3 +90,29 @@ class Paziente(PazienteBase):
     id: int
 
     model_config = {"from_attributes": True}
+
+
+# --- VISITE (CARTELLA CLINICA) ---
+
+class VisitaCreate(BaseModel):
+    paziente_id: int
+    medico_id: int
+    data_visita: str
+    motivo: str = ""
+    diagnosi: str = ""
+    trattamento: str = ""
+    note: str = ""
+
+
+class VisitaResponse(BaseModel):
+    id: int
+    paziente_id: int
+    medico_id: int
+    data_visita: str
+    motivo: str
+    diagnosi: str
+    trattamento: str
+    note: str
+    nome_medico: str = ""
+
+    model_config = {"from_attributes": True}

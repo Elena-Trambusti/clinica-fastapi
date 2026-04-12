@@ -340,6 +340,105 @@ def esporta_turni(
     )
 
 
+# --- VISITE / CARTELLA CLINICA ---
+
+@app.get("/pazienti/{paziente_id}/visite")
+def leggi_visite_paziente(
+    paziente_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paziente = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paziente:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+
+    visite = (
+        db.query(models.Visita)
+        .options(joinedload(models.Visita.medico))
+        .filter(models.Visita.paziente_id == paziente_id)
+        .order_by(models.Visita.data_visita.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": v.id,
+            "paziente_id": v.paziente_id,
+            "medico_id": v.medico_id,
+            "data_visita": v.data_visita,
+            "motivo": v.motivo or "",
+            "diagnosi": v.diagnosi or "",
+            "trattamento": v.trattamento or "",
+            "note": v.note or "",
+            "nome_medico": (
+                f"Dott. {v.medico.nome} {v.medico.cognome}" if v.medico else f"Medico #{v.medico_id}"
+            ),
+        }
+        for v in visite
+    ]
+
+
+@app.post("/visite/", response_model=schemas.VisitaResponse)
+def crea_visita(
+    visita: schemas.VisitaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if not db.query(models.Paziente).filter(models.Paziente.id == visita.paziente_id).first():
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    if not db.query(models.Medico).filter(models.Medico.id == visita.medico_id).first():
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+
+    nuova_visita = models.Visita(**visita.model_dump())
+    db.add(nuova_visita)
+    db.commit()
+    db.refresh(nuova_visita)
+
+    medico = db.query(models.Medico).filter(models.Medico.id == nuova_visita.medico_id).first()
+    return {
+        **{c.name: getattr(nuova_visita, c.name) for c in nuova_visita.__table__.columns},
+        "nome_medico": f"Dott. {medico.nome} {medico.cognome}" if medico else "",
+    }
+
+
+@app.put("/visite/{visita_id}", response_model=schemas.VisitaResponse)
+def aggiorna_visita(
+    visita_id: int,
+    dati: schemas.VisitaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    visita = db.query(models.Visita).filter(models.Visita.id == visita_id).first()
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita non trovata")
+
+    for campo, valore in dati.model_dump().items():
+        setattr(visita, campo, valore)
+
+    db.commit()
+    db.refresh(visita)
+
+    medico = db.query(models.Medico).filter(models.Medico.id == visita.medico_id).first()
+    return {
+        **{c.name: getattr(visita, c.name) for c in visita.__table__.columns},
+        "nome_medico": f"Dott. {medico.nome} {medico.cognome}" if medico else "",
+    }
+
+
+@app.delete("/visite/{visita_id}")
+def elimina_visita(
+    visita_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    visita = db.query(models.Visita).filter(models.Visita.id == visita_id).first()
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita non trovata")
+    db.delete(visita)
+    db.commit()
+    return {"message": "Visita eliminata"}
+
+
 # --- CALENDARIO ---
 
 _COLORS = [
