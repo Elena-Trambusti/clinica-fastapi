@@ -1,61 +1,92 @@
-from pydantic import BaseModel
+import re
 
-# --- REGOLE PER I MEDICI ---
-# Cosa mi aspetto di ricevere quando l'utente vuole aggiungere un medico
+from pydantic import BaseModel, EmailStr, field_validator
+
+
+# --- MEDICI ---
+
 class MedicoCreate(BaseModel):
     nome: str
     cognome: str
     specializzazione: str
 
-# Cosa il server risponderà all'utente (include l'ID generato dal database)
+
 class MedicoResponse(MedicoCreate):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-# --- REGOLE PER I TURNI ---
-# Cosa mi aspetto di ricevere per un turno. 
-# NOTA: Ora chiediamo il medico_id (un numero intero), non più il nome testuale!
+
+# --- TURNI ---
+
 class TurnoCreate(BaseModel):
     orario: str
     stanza: str
-    medico_id: int 
+    medico_id: int
+    paziente_id: int
 
-# Cosa il server risponderà
+
 class TurnoResponse(TurnoCreate):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-        # --- SCHEMI PER L'AUTENTICAZIONE ---
+
+# --- AUTENTICAZIONE ---
+
 class UserCreate(BaseModel):
     username: str
     password: str
 
+
 class UserResponse(BaseModel):
     id: int
     username: str
-    class Config:
-        from_attributes = True
+
+    model_config = {"from_attributes": True}
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
+# --- PAZIENTI ---
+
+_CF_REGEX = re.compile(
+    r"^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$", re.IGNORECASE
+)
+
+
 class PazienteBase(BaseModel):
     nome: str
     cognome: str
     codice_fiscale: str
-    email: str
+    email: EmailStr
     telefono: str
+
+    @field_validator("codice_fiscale")
+    @classmethod
+    def valida_codice_fiscale(cls, v: str) -> str:
+        valore = v.strip().upper()
+        if not _CF_REGEX.match(valore):
+            raise ValueError("Codice fiscale non valido (formato atteso: RSSMRA80A01H501U)")
+        return valore
+
+    @field_validator("nome", "cognome")
+    @classmethod
+    def non_vuoto(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Il campo non puo' essere vuoto")
+        return v
+
 
 class PazienteCreate(PazienteBase):
     pass
 
+
 class Paziente(PazienteBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

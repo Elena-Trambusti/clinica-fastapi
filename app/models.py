@@ -1,56 +1,49 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from .database import Base
 
-# --- NUOVA TABELLA: MEDICI ---
+
 class Medico(Base):
     __tablename__ = "medici"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String)
-    cognome = Column(String)
-    specializzazione = Column(String)
+    nome = Column(String, nullable=False)
+    cognome = Column(String, nullable=False)
+    specializzazione = Column(String, nullable=False)
 
-    # "relationship" è un trucco di SQLAlchemy.
-    # Dice a Python che questo medico è collegato a molti turni.
     turni = relationship("Turno", back_populates="medico_assegnato")
 
-
-# --- TABELLA AGGIORNATA: TURNI ---
-class Turno(Base):
-    __tablename__ = "turni"
-
-    id = Column(Integer, primary_key=True, index=True)
-    orario = Column(String)
-    stanza = Column(String)
-
-    # LA MAGIA: Questa è la Foreign Key.
-    # Impedisce di inserire un turno per un Medico che non esiste!
-    medico_id = Column(Integer, ForeignKey("medici.id"))
-
-    # Relazione speculare: permette a Python di estrarre facilmente i dati del medico partendo dal turno
-    medico_assegnato = relationship("Medico", back_populates="turni")
-
-# Il ponte verso il paziente
-    paziente_id = Column(Integer, ForeignKey("pazienti.id"))
-    paziente_assegnato = relationship("Paziente", back_populates="turni")
-
-    # --- NUOVA TABELLA: UTENTI (PER IL LOGIN) ---
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String) # Qui salviamo la versione criptata!
 
 class Paziente(Base):
     __tablename__ = "pazienti"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String)
-    cognome = Column(String)
-    codice_fiscale = Column(String, unique=True, index=True)
-    email = Column(String)
+    nome = Column(String, nullable=False)
+    cognome = Column(String, nullable=False)
+    codice_fiscale = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, nullable=False)
     telefono = Column(String)
 
     turni = relationship("Turno", back_populates="paziente_assegnato")
+
+
+class Turno(Base):
+    __tablename__ = "turni"
+
+    id = Column(Integer, primary_key=True, index=True)
+    orario = Column(String, nullable=False)
+    stanza = Column(String, nullable=False)
+    medico_id = Column(Integer, ForeignKey("medici.id"), nullable=False)
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
+
+    medico_assegnato = relationship("Medico", back_populates="turni")
+    paziente_assegnato = relationship("Paziente", back_populates="turni")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)

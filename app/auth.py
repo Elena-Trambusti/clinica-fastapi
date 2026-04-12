@@ -1,24 +1,31 @@
-from passlib.context import CryptContext
+import os
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
 
-# Impostazioni segrete (in azienda si mettono in file .env)
-SECRET_KEY = "la_tua_chiave_segretissima_e_lunga"
+from dotenv import load_dotenv
+from jose import jwt
+from passlib.context import CryptContext
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY non impostata nelle variabili d'ambiente. Controlla il file .env")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Funzione per criptare la password
-def hash_password(password: str):
+
+def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-# Funzione per verificare se la password inserita è corretta
-def verify_password(plain_password, hashed_password):
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-# Funzione per creare il "Pass" (Token JWT)
-def create_access_token(data: dict):
+
+def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})

@@ -1,59 +1,114 @@
-# 🏥 Gestionale Clinica Aziendale
+# Gestionale Clinica Aziendale
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite&logoColor=white)
 ![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)
 
-Un'applicazione web full-stack sviluppata per digitalizzare e semplificare la gestione del personale medico e l'assegnazione dei turni all'interno di una clinica.
+Un'applicazione web full-stack per digitalizzare e semplificare la gestione del personale medico, dei pazienti e dei turni all'interno di una clinica.
 
-🚀 **Live Demo:** [https://clinica-fastapi.onrender.com](https://clinica-fastapi.onrender.com)
+**Live Demo:** [https://clinica-fastapi.onrender.com](https://clinica-fastapi.onrender.com)
 
-> **Nota per i test:** Poiché il progetto è ospitato su un'istanza gratuita di Render, il database viene ripristinato ad ogni riavvio del server. 
-> Per testare l'applicazione, visita l'endpoint `/docs`, utilizza la rotta `POST /register` per creare un utente temporaneo (es. `user` / `password123`) e utilizza quelle credenziali per accedere dal link principale.
-
----
-
-## 🎯 Funzionalità Principali
-
-* **Autenticazione Sicura:** Sistema di login e registrazione protetto, con hashing delle password.
-* **Gestione Medici:** Inserimento e visualizzazione dell'anagrafica dei medici (Nome, Cognome, Specializzazione).
-* **Gestione Turni:** Assegnazione dei turni ai medici specificando orario e stanza.
-* **Interfaccia Intuitiva:** Frontend pulito e responsivo, progettato per un utilizzo rapido e senza frizioni.
+> **Nota per i test:** Il progetto è ospitato su un'istanza gratuita di Render. Il database viene ripristinato ad ogni riavvio del server.
+> Per testare l'applicazione, visita l'endpoint `/docs`, utilizza la rotta `POST /register` per creare un utente (es. `user` / `password123`) e accedi con quelle credenziali dalla home.
 
 ---
 
-## 🛠️ Stack Tecnologico
+## Funzionalità
+
+- **Autenticazione JWT:** Login e registrazione con hashing sicuro delle password (bcrypt).
+- **Gestione Medici:** Inserimento, modifica ed eliminazione dell'anagrafica medici.
+- **Gestione Pazienti:** CRUD completo con validazione di email e codice fiscale.
+- **Gestione Turni:** Assegnazione dei turni con controllo automatico dei conflitti (medico, stanza, paziente).
+- **Esportazione CSV:** Download protetto della lista pazienti e dell'agenda turni.
+- **Dashboard:** Statistiche in tempo reale su medici, pazienti e turni attivi.
+
+---
+
+## Stack Tecnologico
 
 ### Backend
-* **Framework:** FastAPI (per la creazione di API RESTful performanti e documentazione automatica Swagger UI).
-* **Database:** SQLite gestito tramite **SQLAlchemy** (ORM) per operazioni CRUD sicure e strutturate.
-* **Sicurezza:** `passlib` e `bcrypt` per il salting e l'hashing sicuro delle password.
+- **Framework:** FastAPI — API RESTful con documentazione Swagger UI automatica.
+- **Database:** SQLite gestito tramite SQLAlchemy ORM.
+- **Sicurezza:** `passlib` + `bcrypt` per l'hashing delle password; `python-jose` per i token JWT.
+- **Validazione:** Pydantic v2 con validazione di `EmailStr` e codice fiscale italiano.
 
 ### Frontend
-* **Tecnologie:** HTML5, CSS3, JavaScript (Vanilla).
-* **Comunicazione:** Utilizzo dell'API asincrona `fetch` per l'integrazione fluida con le rotte del backend senza ricaricare la pagina.
+- **Tecnologie:** HTML5, CSS3, JavaScript (Vanilla) con Bootstrap 5.
+- **Comunicazione:** API `fetch` asincrona con token JWT negli header `Authorization`.
 
-### Deploy & Versioning
-* **Version Control:** Git & GitHub.
-* **Hosting:** Render (Pipeline di Continuous Deployment collegata al branch principale).
-
----
-
-## 💡 Sfide Tecniche Affrontate (Problem Solving)
-
-Durante lo sviluppo e la messa in produzione, ho affrontato e risolto diverse casistiche reali:
-
-1.  **Gestione Conflitti di Dipendenze in Produzione:** Risoluzione di un `ValueError` (Errore 500) causato da incompatibilità interne tra `passlib` e le versioni più recenti di `bcrypt` in ambiente Linux. Il problema è stato risolto analizzando i log del server ed effettuando un downgrade mirato (`bcrypt==3.2.2`) nel file `requirements.txt`.
-2.  **Configurazione API Frontend/Backend:** Risoluzione degli errori CORS e `ERR_CONNECTION_REFUSED` configurando correttamente le rotte JavaScript per il passaggio dall'ambiente di sviluppo locale (`localhost`) all'ambiente di produzione in cloud.
-3.  **Gestione del Database Effimero:** Implementazione del comando `Base.metadata.create_all(bind=engine)` all'avvio dell'applicazione per garantire l'inizializzazione automatica delle tabelle ad ogni riavvio del container.
+### Deploy
+- **Hosting:** Render (CD collegata al branch `main`).
+- **Versioning:** Git & GitHub.
 
 ---
 
-## 💻 Come avviare il progetto in locale
+## Sfide Tecniche Affrontate
 
-Se desideri scaricare ed eseguire il codice sul tuo computer, segui questi passaggi:
+1. **Conflitti di dipendenze in produzione:** `passlib` non è compatibile con le versioni più recenti di `bcrypt` su Linux. Risolto con `bcrypt==3.2.2` nel `requirements.txt`.
+2. **CORS e ambienti multipli:** Gestione degli origini consentiti tramite variabile d'ambiente `ALLOWED_ORIGINS`, separando development e production senza modificare il codice.
+3. **Database effimero su Render:** `Base.metadata.create_all()` all'avvio garantisce la ricostruzione automatica delle tabelle ad ogni riavvio del container.
 
-1. **Clona il repository:**
-   ```bash
-   git clone [https://github.com/](https://github.com/)[Tuo-Nome-Utente]/[Nome-Repository].git
+---
+
+## Avvio in Locale
+
+### Prerequisiti
+- Python 3.11+
+- pip
+
+### Installazione
+
+```bash
+# 1. Clona il repository
+git clone https://github.com/Elena-Trambusti/clinica-fastapi.git
+cd clinica-fastapi
+
+# 2. Crea e attiva un ambiente virtuale
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+
+# 3. Installa le dipendenze
+pip install -r requirements.txt
+
+# 4. Crea il file .env con le variabili d'ambiente
+# (NON committare mai questo file)
+echo SECRET_KEY=genera-una-chiave-casuale-di-64-caratteri > .env
+echo ALLOWED_ORIGINS=http://localhost:8000 >> .env
+
+# 5. Avvia il server
+uvicorn app.main:app --reload
+```
+
+L'applicazione sarà disponibile su [http://localhost:8000](http://localhost:8000).  
+La documentazione interattiva delle API è su [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### Generare una SECRET_KEY sicura
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+---
+
+## Struttura del Progetto
+
+```
+clinica-fastapi/
+├── app/
+│   ├── __init__.py
+│   ├── auth.py        # Hashing password e generazione token JWT
+│   ├── database.py    # Connessione SQLAlchemy
+│   ├── main.py        # Route FastAPI
+│   ├── models.py      # Modelli ORM (Medico, Paziente, Turno, User)
+│   └── schemas.py     # Schemi Pydantic con validazione
+├── static/
+│   └── script.js      # Logica frontend (fetch, UI, autenticazione)
+├── index.html         # Interfaccia utente
+├── requirements.txt   # Dipendenze pinnate
+├── .env               # Variabili d'ambiente (non nel repository)
+└── .gitignore
+```
