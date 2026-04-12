@@ -7,8 +7,11 @@ from io import StringIO
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from . import auth, models, schemas
 from .database import SessionLocal, engine
+from .middleware_security import SecurityHeadersMiddleware
 from .email_utils import (
     build_email_conferma,
     build_email_promemoria,
@@ -46,6 +50,10 @@ for _m in _migrations:
         pass  # colonna già presente
 
 app = FastAPI(title="Gestionale Clinica Pro")
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -102,6 +110,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
@@ -149,17 +159,13 @@ def require_seg_o_admin(current_user: models.User = Depends(get_current_user)) -
 # --- AUTENTICAZIONE ---
 
 @app.post("/register", response_model=schemas.UserResponse)
+@limiter.limit("15/minute")
 def registra_utente(
+    request: Request,
     user: schemas.UserCreate,
     db: Session = Depends(get_db),
 ):
-    # Primo utente: accesso libero. Utenti successivi: solo admin.
-    user_count = db.query(models.User).count()
-    if user_count > 0:
-        # Verifica token admin se presente nell'header
-        from fastapi import Request
-        pass  # gestito dalla UI: solo admin vede il form
-
+    # Primo utente: accesso libero dalla UI. Utenti successivi: form visibile solo ad admin (UI).
     if user.ruolo not in schemas.RUOLI_VALIDI:
         raise HTTPException(status_code=400, detail=f"Ruolo non valido. Valori ammessi: {', '.join(schemas.RUOLI_VALIDI)}")
     existing = db.query(models.User).filter(models.User.username == user.username).first()
@@ -178,8 +184,11 @@ def registra_utente(
 
 
 @app.post("/login", response_model=schemas.Token)
+@limiter.limit("10/minute")
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ):
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if not user or not auth.verify_password(form_data.password, user.hashed_password):

@@ -1,0 +1,81 @@
+Licenza proprietaria — Gestionale Clinica (software)
+
+Copyright (c) 2026 Elena Trambusti e contributori autorizzati.
+Tutti i diritti riservati.
+
+────────────────────────────────────────────────────────────────
+1. OGGETTO
+────────────────────────────────────────────────────────────────
+
+Il presente documento disciplina il software denominato in questo
+repository "Gestionale Clinica" o equivalente, inclusi a titolo
+esemplificativo e non esaustivo:
+
+  • codice sorgente (Python, JavaScript, HTML, CSS e ogni altro linguaggio);
+  • modelli di dati, schema database, migrazioni;
+  • file di configurazione, script di build e deploy;
+  • documentazione, testi dell'interfaccia utente, asset grafici creati
+    per il progetto;
+  • ogni altra componente presente nel repository o fornita con il software.
+
+Di seguito: il "Software".
+
+────────────────────────────────────────────────────────────────
+2. RISERVA DI PROPRIETÀ
+────────────────────────────────────────────────────────────────
+
+Il Software è di proprietà esclusiva del titolare del copyright sopra
+indicato (e/o della società che ne detenga i diritti, se applicabile).
+
+Non si concede alcuna licenza implicita o esplicita di utilizzo,
+distribuzione o modifica del Software, salvo quanto pattuito per iscritto
+con il titolare dei diritti.
+
+Le licenze open source di terze parti (es. librerie da PyPI o CDN)
+restano disciplinate dai rispettivi autori; il presente file non modifica
+le licenze dei componenti di terze parti.
+
+────────────────────────────────────────────────────────────────
+3. DIVIETI (salvo autorizzazione scritta del titolare)
+────────────────────────────────────────────────────────────────
+
+È vietato, senza previa autorizzazione scritta e specifica:
+
+  a) copiare, riprodurre, pubblicare o distribuire il Software o sue parti;
+  b) modificarlo, creare opere derivate o incorporarlo in altri prodotti;
+  c) eseguire reverse engineering, decompilazione o disassemblaggio oltre
+     ai limiti consentiti dalla legge imperativa applicabile;
+  d) rimuovere o alterare avvisi di copyright o marchi;
+  e) utilizzare il Software o il nome del progetto in modo tale da creare
+     confusione sull'origine o la titolarità del Software.
+
+────────────────────────────────────────────────────────────────
+4. ECCEZIONI LEGALI
+────────────────────────────────────────────────────────────────
+
+Nulla in questa licenza limita diritti che la legge applicabile (es. diritto
+di citazione, uso personale privato ove ammesso, diritti degli acquirenti di
+copie legittime) riserva in modo imperativo ai destinatari.
+
+────────────────────────────────────────────────────────────────
+5. ASSENZA DI GARANZIE
+────────────────────────────────────────────────────────────────
+
+Il Software è fornito "così com'è", senza garanzie di alcun tipo, nella
+misura massima consentita dalla legge. Il titolare non è responsabile per
+danni diretti o indiretti derivanti dall'uso o dall'impossibilità di usare
+il Software.
+
+────────────────────────────────────────────────────────────────
+6. CONTATTI
+────────────────────────────────────────────────────────────────
+
+Per richieste di licenza commerciale, autorizzazioni o segnalazioni relative
+ai diritti: contattare il titolare del repository / autore del progetto.
+
+────────────────────────────────────────────────────────────────
+
+NOTA: questo testo ha finalità pratico-organizzative e non sostituisce
+un parere legale personalizzato. Per questioni giuridiche rilevanti
+è consigliabile rivolgersi a un avvocato specializzato in proprietà
+industriale e contratti software.
