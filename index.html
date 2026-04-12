@@ -23,10 +23,11 @@
         ══════════════════════════════════════════ */
 
         #sezione-login {
-            height: 100vh;
+            position: fixed;
+            inset: 0;
             display: flex;
             background: #f0f4f8;
-            overflow: hidden;
+            z-index: 10;
         }
 
         /* Pannello sinistro — branding */
@@ -143,7 +144,7 @@
 
         /* Pannello destro — form */
         .login-right {
-            width: 45%;
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -298,9 +299,9 @@
 
         /* Tablet portrait / mobile grande (< 768px): impila verticalmente */
         @media (max-width: 767px) {
-            #sezione-login { height: auto; min-height: 100vh; flex-direction: column; overflow: visible; overflow-y: auto; }
+            #sezione-login { position: relative; inset: auto; height: auto; min-height: 100svh; flex-direction: column; overflow-y: auto; }
             .login-left  { width: 100%; padding: 2rem 1.5rem; overflow-y: visible; }
-            .login-right { width: 100%; padding: 1.5rem 1rem; min-height: auto; overflow-y: visible; }
+            .login-right { flex: none; width: 100%; padding: 1.5rem 1rem; }
             .login-brand-title { font-size: 1.65rem; margin-bottom: .5rem; }
             .login-tagline { margin-bottom: 1.25rem; font-size: .82rem; }
             .login-feature { margin-bottom: .75rem; }
