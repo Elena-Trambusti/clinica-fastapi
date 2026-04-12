@@ -869,6 +869,91 @@ def upsert_anamnesi(
     return _anamnesi_to_response(a)
 
 
+# --- PRESCRIZIONI ---
+
+def _presc_to_response(pr: models.Prescrizione) -> schemas.PrescrizioneResponse:
+    def _load(v: str):
+        try:
+            return json.loads(v or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    paz = pr.paziente
+    med = pr.medico
+    return schemas.PrescrizioneResponse(
+        id=pr.id,
+        paziente_id=pr.paziente_id,
+        medico_id=pr.medico_id,
+        data_prescrizione=pr.data_prescrizione,
+        farmaci=_load(pr.farmaci),
+        diagnosi_riferimento=pr.diagnosi_riferimento or "",
+        note_prescrittore=pr.note_prescrittore or "",
+        nome_paziente=paz.nome if paz else "",
+        cognome_paziente=paz.cognome if paz else "",
+        nome_medico=f"{med.nome} {med.cognome}" if med else "",
+    )
+
+
+@app.get("/pazienti/{paziente_id}/prescrizioni", response_model=list[schemas.PrescrizioneResponse])
+def lista_prescrizioni(
+    paziente_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paz = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paz:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    rows = (
+        db.query(models.Prescrizione)
+        .filter(models.Prescrizione.paziente_id == paziente_id)
+        .order_by(models.Prescrizione.id.desc())
+        .all()
+    )
+    return [_presc_to_response(p) for p in rows]
+
+
+@app.post("/pazienti/{paziente_id}/prescrizioni", response_model=schemas.PrescrizioneResponse, status_code=201)
+def crea_prescrizione(
+    paziente_id: int,
+    dati: schemas.PrescrizioneCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paz = db.query(models.Paziente).filter(models.Paziente.id == paziente_id).first()
+    if not paz:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    med = db.query(models.Medico).filter(models.Medico.id == dati.medico_id).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medico non trovato")
+
+    pr = models.Prescrizione(
+        paziente_id=paziente_id,
+        medico_id=dati.medico_id,
+        data_prescrizione=dati.data_prescrizione,
+        farmaci=json.dumps(dati.farmaci, ensure_ascii=False),
+        diagnosi_riferimento=dati.diagnosi_riferimento,
+        note_prescrittore=dati.note_prescrittore,
+    )
+    db.add(pr)
+    db.commit()
+    db.refresh(pr)
+    return _presc_to_response(pr)
+
+
+@app.delete("/prescrizioni/{prescrizione_id}")
+def elimina_prescrizione(
+    prescrizione_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    pr = db.query(models.Prescrizione).filter(models.Prescrizione.id == prescrizione_id).first()
+    if not pr:
+        raise HTTPException(status_code=404, detail="Prescrizione non trovata")
+    db.delete(pr)
+    db.commit()
+    return {"message": "Prescrizione eliminata"}
+
+
 # --- LISTA D'ATTESA ---
 
 def _attesa_to_response(e: models.ListaAttesa) -> schemas.ListaAttesaResponse:

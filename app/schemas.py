@@ -195,6 +195,46 @@ class AnamnesiResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- PRESCRIZIONI ---
+
+class FarmacoPrescritto(BaseModel):
+    nome: str
+    posologia: str = ""
+    durata: str = ""
+    qty: str = ""
+
+
+class PrescrizioneCreate(BaseModel):
+    medico_id: int
+    data_prescrizione: str
+    farmaci: list[dict[str, Any]]
+    diagnosi_riferimento: str = ""
+    note_prescrittore: str = ""
+
+    @field_validator("farmaci")
+    @classmethod
+    def almeno_un_farmaco(cls, v: list) -> list:
+        validi = [f for f in v if isinstance(f, dict) and str(f.get("nome", "")).strip()]
+        if not validi:
+            raise ValueError("Inserire almeno un farmaco con nome indicato")
+        return validi
+
+
+class PrescrizioneResponse(BaseModel):
+    id: int
+    paziente_id: int
+    medico_id: int
+    data_prescrizione: str
+    farmaci: list[dict[str, Any]]
+    diagnosi_riferimento: str
+    note_prescrittore: str
+    nome_paziente: str = ""
+    cognome_paziente: str = ""
+    nome_medico: str = ""
+
+    model_config = {"from_attributes": True}
+
+
 # --- LISTA D'ATTESA ---
 
 STATI_ATTESA    = {"attesa", "contattato", "confermato", "rimosso"}

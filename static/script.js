@@ -402,6 +402,8 @@ async function caricaDati() {
 const _statoLabel = {
     prenotato:  '🔵 Prenotato',
     confermato: '🟢 Confermato',
+    arrivato:   '🟠 In sala',
+    con_medico: '🩺 Con medico',
     completato: '⚪ Completato',
     no_show:    '🔴 No-show',
 };
@@ -1455,6 +1457,235 @@ async function esportaCartellaPDF() {
     mostraNotifica(`PDF cartella generato (${visite.length} visite).`);
 }
 
+// ── Prescrizioni digitali (cartella clinica) ───────────────────────────────
+
+let _prescrizioniCartella = [];
+
+function aggiungiRigaFarmacoPrescrizione(nome = '', posologia = '', durata = '', qty = '') {
+    const wrap = document.getElementById('farmaci-prescrizione-lista');
+    if (!wrap) return;
+    const div = document.createElement('div');
+    div.className = 'd-flex flex-wrap gap-1 mb-1 align-items-center';
+    div.innerHTML = `
+        <input type="text" class="form-control form-control-sm prescr-farm-nome" style="min-width:140px;flex:1"
+               placeholder="Farmaco" value="${escapeHtml(nome)}">
+        <input type="text" class="form-control form-control-sm prescr-farm-pos" style="min-width:120px;flex:1"
+               placeholder="Posologia" value="${escapeHtml(posologia)}">
+        <input type="text" class="form-control form-control-sm prescr-farm-dur" style="width:88px"
+               placeholder="Durata" value="${escapeHtml(durata)}">
+        <input type="text" class="form-control form-control-sm prescr-farm-qty" style="width:88px"
+               placeholder="Q.tà" value="${escapeHtml(qty)}">
+        <button type="button" class="btn btn-outline-danger btn-sm px-2" onclick="this.closest('div').remove()">✕</button>`;
+    wrap.appendChild(div);
+}
+
+function _resetFormNuovaPrescrizione(pazienteId) {
+    document.getElementById('prescrizione-paziente-id').value = pazienteId;
+    document.getElementById('prescrizione-diagnosi').value = '';
+    document.getElementById('prescrizione-note').value = '';
+    const d = document.getElementById('prescrizione-data');
+    if (d) d.value = new Date().toISOString().slice(0, 10);
+    const lista = document.getElementById('farmaci-prescrizione-lista');
+    if (lista) {
+        lista.innerHTML = '';
+        aggiungiRigaFarmacoPrescrizione();
+    }
+    _popolaSelectMediciVisita('prescrizione-medico-id');
+}
+
+async function caricaPrescrizioni(pazienteId) {
+    const el = document.getElementById('lista-prescrizioni-cartella');
+    if (!el) return;
+    el.innerHTML = '<span class="text-muted">Caricamento…</span>';
+    const res = await fetch(`/pazienti/${pazienteId}/prescrizioni`, { headers: authHeaders() });
+    if (!res.ok) {
+        el.textContent = 'Impossibile caricare le prescrizioni.';
+        return;
+    }
+    _prescrizioniCartella = await res.json();
+    renderListaPrescrizioniCartella();
+}
+
+function renderListaPrescrizioniCartella() {
+    const el = document.getElementById('lista-prescrizioni-cartella');
+    if (!el) return;
+    if (_prescrizioniCartella.length === 0) {
+        el.innerHTML = '<span class="text-muted fst-italic">Nessuna prescrizione registrata. Usa «+ Nuova prescrizione».</span>';
+        return;
+    }
+    el.innerHTML = `<div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-0 bg-white">
+        <thead class="table-light"><tr>
+            <th>Data</th><th>Medico</th><th>Farmaci</th><th style="width:130px">Azioni</th>
+        </tr></thead><tbody>
+        ${_prescrizioniCartella.map((p) => {
+        const nFarm = (p.farmaci || []).length;
+        const dataIt = p.data_prescrizione ? new Date(p.data_prescrizione + 'T12:00:00').toLocaleDateString('it-IT') : '—';
+        const delBtn = `<button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="eliminaPrescrizione(${p.id})">Elimina</button>`;
+        return `<tr>
+            <td class="text-nowrap">${dataIt}</td>
+            <td>${escapeHtml(p.nome_medico || '—')}</td>
+            <td class="small">${nFarm} voce/i${p.diagnosi_riferimento ? ` · <span class="text-muted">${escapeHtml(p.diagnosi_riferimento)}</span>` : ''}</td>
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="esportaPrescrizionePDFDaId(${p.id})">📄 PDF</button>
+                ${delBtn}
+            </td>
+        </tr>`;
+    }).join('')}
+        </tbody></table></div>`;
+}
+
+// Evita problemi di quoting: passa solo l'id e legge dalla cache
+function esportaPrescrizionePDFDaId(id) {
+    const p = _prescrizioniCartella.find((x) => x.id === id);
+    if (p) esportaPrescrizionePDF(p);
+}
+
+async function salvaPrescrizione(e) {
+    e.preventDefault();
+    const pazienteId = document.getElementById('prescrizione-paziente-id').value;
+    const farmaci = [...document.querySelectorAll('#farmaci-prescrizione-lista > div')].map((row) => ({
+        nome: row.querySelector('.prescr-farm-nome').value.trim(),
+        posologia: row.querySelector('.prescr-farm-pos').value.trim(),
+        durata: row.querySelector('.prescr-farm-dur').value.trim(),
+        qty: row.querySelector('.prescr-farm-qty').value.trim(),
+    })).filter((f) => f.nome);
+    if (!farmaci.length) {
+        mostraNotifica('Inserisci almeno un farmaco con nome indicato.', false);
+        return;
+    }
+    const payload = {
+        medico_id: parseInt(document.getElementById('prescrizione-medico-id').value, 10),
+        data_prescrizione: document.getElementById('prescrizione-data').value,
+        farmaci,
+        diagnosi_riferimento: document.getElementById('prescrizione-diagnosi').value.trim(),
+        note_prescrittore: document.getElementById('prescrizione-note').value.trim(),
+    };
+    const res = await fetch(`/pazienti/${pazienteId}/prescrizioni`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+        const nuova = await res.json();
+        _prescrizioniCartella.unshift(nuova);
+        renderListaPrescrizioniCartella();
+        bootstrap.Collapse.getOrCreateInstance(document.getElementById('formNuovaPrescrizione'), { toggle: false }).hide();
+        _resetFormNuovaPrescrizione(pazienteId);
+        mostraNotifica('Prescrizione salvata. Puoi generare il PDF dalla tabella.');
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(formatApiError(err), false);
+    }
+}
+
+async function eliminaPrescrizione(id) {
+    if (!confirm('Eliminare definitivamente questa prescrizione?')) return;
+    const res = await fetch(`/prescrizioni/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) {
+        _prescrizioniCartella = _prescrizioniCartella.filter((p) => p.id !== id);
+        renderListaPrescrizioniCartella();
+        mostraNotifica('Prescrizione eliminata.');
+    } else {
+        mostraNotifica('Errore durante l\'eliminazione.', false);
+    }
+}
+
+function esportaPrescrizionePDF(p) {
+    if (!window.jspdf) {
+        mostraNotifica('Libreria PDF non ancora caricata.', false);
+        return;
+    }
+    if (!_pazienteCartellaInfo) return;
+    const info = _pazienteCartellaInfo;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    doc.setFillColor(25, 135, 84);
+    doc.rect(0, 0, 210, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Prescrizione medica', 10, 15);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('Gestionale Clinica — documento informativo', 10, 23);
+    doc.text(new Date().toLocaleString('it-IT'), 200, 23, { align: 'right' });
+
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(25, 135, 84);
+    doc.roundedRect(10, 34, 190, 28, 2, 2, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`Paziente: ${info.nome} ${info.cognome}`, 14, 43);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    doc.text(`CF: ${info.cf}`, 14, 50);
+    doc.text(`Prescrittore: ${p.nome_medico || '—'}`, 14, 56);
+    const dataIt = p.data_prescrizione
+        ? new Date(p.data_prescrizione + 'T12:00:00').toLocaleDateString('it-IT')
+        : '—';
+    doc.text(`Data prescrizione: ${dataIt}`, 120, 50);
+    if (p.diagnosi_riferimento) {
+        doc.setTextColor(40);
+        doc.text(`Diagnosi / indicazione: ${p.diagnosi_riferimento}`, 120, 56);
+    }
+
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Farmaci prescritti', 10, 72);
+
+    const body = (p.farmaci || []).map((f) => [
+        f.nome || '—',
+        f.posologia || '—',
+        f.durata || '—',
+        f.qty || '—',
+    ]);
+    doc.autoTable({
+        startY: 76,
+        head: [['Farmaco', 'Posologia', 'Durata', 'Quantità']],
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [25, 135, 84], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 8.5 },
+        margin: { left: 10, right: 10 },
+    });
+
+    let y = doc.lastAutoTable.finalY + 8;
+    if (p.note_prescrittore) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text('Note e avvertenze', 10, y);
+        y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        const lines = doc.splitTextToSize(p.note_prescrittore, 190);
+        doc.text(lines, 10, y);
+        y += lines.length * 4 + 6;
+    }
+
+    doc.setDrawColor(120);
+    doc.setLineWidth(0.3);
+    doc.line(10, Math.min(y + 4, 250), 100, Math.min(y + 4, 250));
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text('Firma prescrittore', 10, Math.min(y + 12, 258));
+
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(160);
+        doc.text('Documento generato dal gestionale — verificare sempre dosi e interazioni.', 10, 288);
+        doc.text(`Pag. ${i}/${pages}`, 200, 288, { align: 'right' });
+    }
+
+    const fname = `prescrizione_${info.cognome}_${p.id}.pdf`.toLowerCase().replace(/\s+/g, '_');
+    doc.save(fname);
+    mostraNotifica('PDF prescrizione scaricato.');
+}
+
 // ═══════════════════════════════════════════════════════
 //  CARTELLA CLINICA
 // ═══════════════════════════════════════════════════════
@@ -1489,12 +1720,17 @@ function apriCartellaClinica(id, nome, cognome, cf, email, tel) {
     const collapseAnamnesi = document.getElementById('formAnamnesi');
     if (collapseAnamnesi) bootstrap.Collapse.getOrCreateInstance(collapseAnamnesi, { toggle: false }).hide();
 
+    const collapsePresc = document.getElementById('formNuovaPrescrizione');
+    if (collapsePresc) bootstrap.Collapse.getOrCreateInstance(collapsePresc, { toggle: false }).hide();
+    _resetFormNuovaPrescrizione(id);
+
     // Apre il modal
     new bootstrap.Modal(document.getElementById('modalCartella')).show();
 
-    // Carica visite e anamnesi in parallelo
+    // Carica visite, anamnesi e prescrizioni in parallelo
     caricaVisite(id);
     caricaAnamnesi(id);
+    caricaPrescrizioni(id);
 }
 
 function _popolaSelectMediciVisita(selectId) {

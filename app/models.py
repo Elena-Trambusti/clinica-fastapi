@@ -14,6 +14,7 @@ class Medico(Base):
 
     turni = relationship("Turno", back_populates="medico_assegnato")
     visite = relationship("Visita", back_populates="medico")
+    prescrizioni = relationship("Prescrizione", back_populates="medico")
 
 
 class Paziente(Base):
@@ -29,6 +30,7 @@ class Paziente(Base):
     turni = relationship("Turno", back_populates="paziente_assegnato")
     visite = relationship("Visita", back_populates="paziente")
     anamnesi = relationship("Anamnesi", back_populates="paziente", uselist=False)
+    prescrizioni = relationship("Prescrizione", back_populates="paziente")
 
 
 class Anamnesi(Base):
@@ -82,6 +84,23 @@ class Visita(Base):
 
     paziente = relationship("Paziente", back_populates="visite")
     medico = relationship("Medico", back_populates="visite")
+
+
+class Prescrizione(Base):
+    """Prescrizione farmaceutica digitale (PDF generato lato client)."""
+    __tablename__ = "prescrizioni"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
+    medico_id = Column(Integer, ForeignKey("medici.id"), nullable=False)
+    data_prescrizione = Column(String, nullable=False)
+    # JSON: [{"nome": "...", "posologia": "...", "durata": "7 gg", "qty": "1 scatola"}]
+    farmaci = Column(Text, default="[]")
+    diagnosi_riferimento = Column(String, default="")
+    note_prescrittore = Column(Text, default="")
+
+    paziente = relationship("Paziente", back_populates="prescrizioni")
+    medico = relationship("Medico", back_populates="prescrizioni")
 
 
 class ListaAttesa(Base):
