@@ -80,6 +80,11 @@ function logout() {
 let _medicoMap = {};
 let _pazienteMap = {};
 
+// Array globali per ricerca e filtri
+let _allMedici   = [];
+let _allPazienti = [];
+let _allTurni    = [];
+
 // Istanze Chart.js (distrutte e ricreate ad ogni refresh dashboard)
 let _charts = {};
 
@@ -94,12 +99,15 @@ async function caricaDati() {
     const resM = await fetch('/medici/', { headers });
     if (!resM.ok) return;
     const medici = await resM.json();
+    _allMedici = medici;
 
     _medicoMap = {};
     const tbodyM = document.getElementById('tabella-medici');
-    const selectM = document.getElementById('id-medico-turno');
+    const selectM  = document.getElementById('id-medico-turno');
+    const filtroM  = document.getElementById('filtro-medico');
     tbodyM.innerHTML = '';
     selectM.innerHTML = '<option value="" disabled selected>Seleziona medico...</option>';
+    if (filtroM) filtroM.innerHTML = '<option value="">Tutti i medici</option>';
 
     medici.forEach(m => {
         _medicoMap[m.id] = { nome: `${m.nome} ${m.cognome}`, spec: m.specializzazione };
@@ -125,22 +133,38 @@ async function caricaDati() {
         opt.value = m.id;
         opt.textContent = `Dott. ${m.nome} ${m.cognome} — ${m.specializzazione}`;
         selectM.appendChild(opt);
+
+        if (filtroM) {
+            const fOpt = document.createElement('option');
+            fOpt.value = m.id;
+            fOpt.textContent = `Dott. ${m.nome} ${m.cognome}`;
+            filtroM.appendChild(fOpt);
+        }
     });
 
     aggiornaLegendaCalendario(medici);
 
+    const cntM = document.getElementById('medici-count');
+    if (cntM) cntM.textContent = `${medici.length} medici`;
+
     // Turni
     const resT = await fetch('/turni/', { headers });
     if (!resT.ok) return;
-    const turni = await resT.json();
+    _allTurni = await resT.json();
 
-    const tbodyT = document.getElementById('tabella-turni');
-    tbodyT.innerHTML = '';
+    filtraTurni();   // renderizza rispettando filtri eventualmente già attivi
 
-    turni.forEach(t => {
+    // Aggiorna il calendario se già inizializzato
+    if (calendario) calendario.refetchEvents();
+}
+
+// Rendering separato dei turni — usato anche da filtraTurni()
+function _renderTabellaTurni(lista) {
+    const tbody = document.getElementById('tabella-turni');
+    tbody.innerHTML = '';
+    lista.forEach(t => {
         const nomeMedico = _medicoMap[t.medico_id]?.nome ?? `ID ${t.medico_id}`;
         const nomePaz    = _pazienteMap[t.paziente_id]?.nome ?? `ID ${t.paziente_id}`;
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${escapeHtml(formatOrario(t.orario))}</td>
@@ -153,23 +177,31 @@ async function caricaDati() {
                     Elimina
                 </button>
             </td>`;
-        tbodyT.appendChild(tr);
+        tbody.appendChild(tr);
     });
 
-    // Aggiorna il calendario se già inizializzato
-    if (calendario) calendario.refetchEvents();
+    // Aggiorna contatore risultati
+    const counter = document.getElementById('turni-count');
+    if (counter) {
+        counter.textContent = lista.length === _allTurni.length
+            ? `${lista.length} appuntamenti`
+            : `${lista.length} di ${_allTurni.length}`;
+    }
 }
 
 async function caricaPazienti() {
     const res = await fetch('/pazienti', { headers: authHeaders() });
     if (!res.ok) return;
     const pazienti = await res.json();
+    _allPazienti = pazienti;
 
     _pazienteMap = {};
-    const tbody = document.getElementById('tabella-pazienti');
+    const tbody   = document.getElementById('tabella-pazienti');
     const selectP = document.getElementById('id-paziente-turno');
+    const filtroP = document.getElementById('filtro-paziente');
     tbody.innerHTML = '';
     if (selectP) selectP.innerHTML = '<option value="" disabled selected>Seleziona paziente...</option>';
+    if (filtroP) filtroP.innerHTML = '<option value="">Tutti i pazienti</option>';
 
     pazienti.forEach(p => {
         _pazienteMap[p.id] = { nome: `${p.nome} ${p.cognome}` };
@@ -202,7 +234,16 @@ async function caricaPazienti() {
             opt.textContent = `${p.nome} ${p.cognome}`;
             selectP.appendChild(opt);
         }
+        if (filtroP) {
+            const fOpt = document.createElement('option');
+            fOpt.value = p.id;
+            fOpt.textContent = `${p.nome} ${p.cognome}`;
+            filtroP.appendChild(fOpt);
+        }
     });
+
+    const cntP = document.getElementById('pazienti-count');
+    if (cntP) cntP.textContent = `${pazienti.length} pazienti`;
 }
 
 async function caricaDashboard() {
@@ -733,17 +774,173 @@ async function eliminaRecord(tipo, id) {
 
 function filtraPazienti() {
     const q = document.getElementById('cercaPaziente').value.toLowerCase();
+    let count = 0;
     for (const tr of document.getElementById('tabella-pazienti').rows) {
-        tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+        const show = tr.innerText.toLowerCase().includes(q);
+        tr.style.display = show ? '' : 'none';
+        if (show) count++;
     }
+    const el = document.getElementById('pazienti-count');
+    if (el) el.textContent = q ? `${count} di ${_allPazienti.length}` : `${_allPazienti.length} pazienti`;
 }
 
 function filtraMedici() {
     const q = document.getElementById('cercaMedico').value.toLowerCase();
+    let count = 0;
     for (const tr of document.getElementById('tabella-medici').rows) {
-        tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+        const show = tr.innerText.toLowerCase().includes(q);
+        tr.style.display = show ? '' : 'none';
+        if (show) count++;
+    }
+    const el = document.getElementById('medici-count');
+    if (el) el.textContent = q ? `${count} di ${_allMedici.length}` : `${_allMedici.length} medici`;
+}
+
+function filtraTurni() {
+    const da      = document.getElementById('filtro-da')?.value ?? '';
+    const a       = document.getElementById('filtro-a')?.value ?? '';
+    const medicoId = document.getElementById('filtro-medico')?.value ?? '';
+    const pazId    = document.getElementById('filtro-paziente')?.value ?? '';
+    const q        = (document.getElementById('cerca-turno')?.value ?? '').toLowerCase();
+
+    let lista = _allTurni;
+
+    if (da)       lista = lista.filter(t => t.orario && t.orario.slice(0, 10) >= da);
+    if (a)        lista = lista.filter(t => t.orario && t.orario.slice(0, 10) <= a);
+    if (medicoId) lista = lista.filter(t => String(t.medico_id) === medicoId);
+    if (pazId)    lista = lista.filter(t => String(t.paziente_id) === pazId);
+    if (q) {
+        lista = lista.filter(t => {
+            const med = (_medicoMap[t.medico_id]?.nome ?? '').toLowerCase();
+            const paz = (_pazienteMap[t.paziente_id]?.nome ?? '').toLowerCase();
+            return med.includes(q) || paz.includes(q) || (t.stanza || '').toLowerCase().includes(q);
+        });
+    }
+
+    _renderTabellaTurni(lista);
+
+    // Aggiorna badge contatore filtri attivi
+    const nFiltri = [da, a, medicoId, pazId, q].filter(Boolean).length;
+    const badge = document.getElementById('badge-filtri');
+    if (badge) {
+        if (nFiltri > 0) {
+            badge.textContent = nFiltri;
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
     }
 }
+
+function resetFiltriTurni() {
+    const ids = ['filtro-da', 'filtro-a', 'filtro-medico', 'filtro-paziente', 'cerca-turno'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    filtraTurni();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RICERCA GLOBALE
+// ═══════════════════════════════════════════════════════
+
+function ricercaGlobale(q) {
+    const box = document.getElementById('ricerca-risultati');
+    if (!q || q.trim().length < 2) { box.style.display = 'none'; return; }
+    const ql = q.toLowerCase().trim();
+
+    const mediciMatch   = _allMedici.filter(m =>
+        `${m.nome} ${m.cognome} ${m.specializzazione}`.toLowerCase().includes(ql)
+    ).slice(0, 4);
+
+    const pazMatch = _allPazienti.filter(p =>
+        `${p.nome} ${p.cognome} ${p.codice_fiscale} ${p.email}`.toLowerCase().includes(ql)
+    ).slice(0, 4);
+
+    const turniMatch = _allTurni.filter(t => {
+        const med = _medicoMap[t.medico_id]?.nome ?? '';
+        const paz = _pazienteMap[t.paziente_id]?.nome ?? '';
+        return `${med} ${paz} ${t.stanza}`.toLowerCase().includes(ql);
+    }).slice(0, 3);
+
+    if (!mediciMatch.length && !pazMatch.length && !turniMatch.length) {
+        box.innerHTML = '<div class="gs-empty">Nessun risultato per "<strong>' + escapeHtml(q) + '</strong>"</div>';
+        box.style.display = 'block';
+        return;
+    }
+
+    let html = '';
+
+    if (mediciMatch.length) {
+        html += '<div class="gs-category">👨‍⚕️ Medici</div>';
+        mediciMatch.forEach(m => {
+            const nomeFull = escapeHtml(`${m.nome} ${m.cognome}`);
+            html += `<div class="gs-item" onclick="saltaATab('tab-medici','cercaMedico','${nomeFull}')">
+                <div class="gs-title">Dott. ${nomeFull}</div>
+                <div class="gs-sub">${escapeHtml(m.specializzazione || '—')}</div>
+            </div>`;
+        });
+    }
+
+    if (pazMatch.length) {
+        html += '<div class="gs-category">👤 Pazienti</div>';
+        pazMatch.forEach(p => {
+            const nomeFull = escapeHtml(`${p.nome} ${p.cognome}`);
+            html += `<div class="gs-item" onclick="saltaATab('tab-pazienti','cercaPaziente','${nomeFull}')">
+                <div class="gs-title">${nomeFull}</div>
+                <div class="gs-sub">${escapeHtml(p.codice_fiscale)} · ${escapeHtml(p.email)}</div>
+            </div>`;
+        });
+    }
+
+    if (turniMatch.length) {
+        html += '<div class="gs-category">📅 Appuntamenti</div>';
+        turniMatch.forEach(t => {
+            const med = escapeHtml(_medicoMap[t.medico_id]?.nome ?? '—');
+            const paz = escapeHtml(_pazienteMap[t.paziente_id]?.nome ?? '—');
+            html += `<div class="gs-item" onclick="saltaATab('tab-turni',null,null)">
+                <div class="gs-title">${paz} — Dott. ${med}</div>
+                <div class="gs-sub">${escapeHtml(formatOrario(t.orario))} · Stanza ${escapeHtml(t.stanza)}</div>
+            </div>`;
+        });
+    }
+
+    box.innerHTML = html;
+    box.style.display = 'block';
+}
+
+function saltaATab(tabId, cercaId, query) {
+    // Chiude il dropdown
+    const box  = document.getElementById('ricerca-risultati');
+    const inp  = document.getElementById('ricerca-globale');
+    if (box) box.style.display = 'none';
+    if (inp) inp.value = '';
+
+    // Attiva il tab
+    const tabEl = document.getElementById(tabId);
+    if (tabEl) new bootstrap.Tab(tabEl).show();
+
+    // Pre-compila la ricerca locale e applica il filtro
+    if (cercaId && query) {
+        setTimeout(() => {
+            const el = document.getElementById(cercaId);
+            if (el) {
+                el.value = query;
+                el.dispatchEvent(new Event('keyup'));
+            }
+        }, 120);
+    }
+}
+
+// Chiudi ricerca globale cliccando fuori
+document.addEventListener('click', e => {
+    const wrap = document.getElementById('navbar-search-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        const box = document.getElementById('ricerca-risultati');
+        if (box) box.style.display = 'none';
+    }
+});
 
 // ═══════════════════════════════════════════════════════
 //  EXPORT CSV
