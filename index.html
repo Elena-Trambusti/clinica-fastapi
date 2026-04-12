@@ -5,12 +5,262 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestionale Clinica Pro</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <style>
+        * { font-family: 'Inter', sans-serif; }
+
         body { background-color: #f0f4f8; }
 
         #sezione-app { display: none; }
+
+        /* ══════════════════════════════════════════
+           LOGIN PAGE
+        ══════════════════════════════════════════ */
+
+        #sezione-login {
+            min-height: 100vh;
+            display: flex;
+            background: #f0f4f8;
+        }
+
+        /* Pannello sinistro — branding */
+        .login-left {
+            width: 55%;
+            background: linear-gradient(145deg, #0a1628 0%, #1a3a8f 45%, #0d6efd 80%, #00aaff 100%);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 3.5rem 4rem;
+            overflow: hidden;
+        }
+
+        /* Cerchi decorativi di sfondo */
+        .login-left::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.04);
+            top: -150px; right: -150px;
+            pointer-events: none;
+        }
+        .login-left::after {
+            content: '';
+            position: absolute;
+            width: 320px; height: 320px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.04);
+            bottom: -100px; left: -80px;
+            pointer-events: none;
+        }
+
+        /* Croce medica decorativa */
+        .med-cross-bg {
+            position: absolute;
+            right: -20px; bottom: 60px;
+            width: 280px; height: 280px;
+            opacity: .06;
+            background: white;
+            clip-path: polygon(37% 0%,63% 0%,63% 37%,100% 37%,100% 63%,63% 63%,63% 100%,37% 100%,37% 63%,0% 63%,0% 37%,37% 37%);
+        }
+
+        .login-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: rgba(255,255,255,.15);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,.2);
+            border-radius: 999px;
+            padding: .35rem 1rem;
+            color: #fff;
+            font-size: .8rem;
+            font-weight: 600;
+            letter-spacing: .04em;
+            margin-bottom: 1.5rem;
+            width: fit-content;
+        }
+
+        .login-brand-title {
+            font-size: 2.6rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.15;
+            margin-bottom: .75rem;
+        }
+
+        .login-brand-title span {
+            color: #7dd3fc;
+        }
+
+        .login-tagline {
+            font-size: 1rem;
+            color: rgba(255,255,255,.7);
+            font-weight: 400;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+        }
+
+        .login-feature {
+            display: flex;
+            align-items: flex-start;
+            gap: .9rem;
+            margin-bottom: 1.1rem;
+            animation: slideInLeft .5s ease both;
+        }
+        .login-feature:nth-child(2) { animation-delay: .1s; }
+        .login-feature:nth-child(3) { animation-delay: .2s; }
+        .login-feature:nth-child(4) { animation-delay: .3s; }
+
+        .login-feature-icon {
+            width: 38px; height: 38px;
+            border-radius: .6rem;
+            background: rgba(255,255,255,.15);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .login-feature-title {
+            font-size: .9rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .login-feature-desc {
+            font-size: .78rem;
+            color: rgba(255,255,255,.6);
+            margin-top: .1rem;
+        }
+
+        /* Pannello destro — form */
+        .login-right {
+            width: 45%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 3rem;
+            background: #f8faff;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            animation: fadeInUp .5s ease both;
+        }
+
+        .login-card-inner {
+            background: #fff;
+            border-radius: 1.25rem;
+            padding: 2.5rem;
+            box-shadow: 0 8px 40px rgba(13,110,253,.1), 0 2px 8px rgba(0,0,0,.06);
+        }
+
+        .login-form-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: .3rem;
+        }
+
+        .login-form-sub {
+            font-size: .85rem;
+            color: #6c757d;
+            margin-bottom: 1.75rem;
+        }
+
+        .login-input-group {
+            position: relative;
+            margin-bottom: 1.1rem;
+        }
+
+        .login-input-group label {
+            font-size: .82rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: .4rem;
+            display: block;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: .75rem 1rem .75rem 2.75rem;
+            border: 1.5px solid #e5e7eb;
+            border-radius: .75rem;
+            font-size: .95rem;
+            color: #1a1a2e;
+            transition: border-color .2s, box-shadow .2s;
+            outline: none;
+            background: #fafbff;
+        }
+
+        .login-input:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 3px rgba(13,110,253,.12);
+            background: #fff;
+        }
+
+        .login-input-icon {
+            position: absolute;
+            left: .9rem;
+            top: 2.25rem;
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: .8rem;
+            border-radius: .75rem;
+            font-size: .95rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #0d6efd 0%, #0099cc 100%);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .15s, opacity .15s;
+            margin-top: .4rem;
+            letter-spacing: .02em;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(13,110,253,.35);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .login-footer-text {
+            text-align: center;
+            font-size: .75rem;
+            color: #adb5bd;
+            margin-top: 1.5rem;
+        }
+
+        /* Animazioni */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-16px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive: su mobile impila verticalmente */
+        @media (max-width: 768px) {
+            #sezione-login { flex-direction: column; }
+            .login-left  { width: 100%; padding: 2.5rem 1.5rem; }
+            .login-right { width: 100%; padding: 2rem 1rem; }
+            .login-brand-title { font-size: 1.9rem; }
+            .med-cross-bg { display: none; }
+        }
 
         .navbar-clinica {
             background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
@@ -114,26 +364,90 @@
 <body>
 
 <!-- ═══════════════════════════════════ LOGIN ═══════════════════════════════════ -->
-<div id="sezione-login" class="d-flex align-items-center justify-content-center min-vh-100">
-    <div class="bg-white p-4 rounded-3 shadow-lg" style="width: 380px;">
-        <div class="text-center mb-4">
-            <img src="/static/logo.png" alt="Logo" width="72" class="rounded-circle shadow-sm mb-3"
-                 onerror="this.style.display='none'">
-            <h4 class="fw-bold text-primary mb-0">Gestionale Clinica</h4>
-            <small class="text-muted">Accedi per continuare</small>
+<div id="sezione-login">
+
+    <!-- Pannello sinistro: branding -->
+    <div class="login-left">
+        <div class="med-cross-bg"></div>
+
+        <div class="login-badge">
+            <span>🏥</span> Gestionale Clinica Pro
         </div>
-        <form onsubmit="faiLogin(event)">
-            <div class="mb-3">
-                <label class="form-label fw-semibold">Username</label>
-                <input type="text" id="user" class="form-control" placeholder="Inserisci username" required autofocus>
+
+        <h1 class="login-brand-title">
+            La tua clinica,<br>
+            gestita con <span>intelligenza</span>.
+        </h1>
+        <p class="login-tagline">
+            Calendari, cartelle cliniche, turni e statistiche —<br>
+            tutto in un'unica piattaforma professionale.
+        </p>
+
+        <div>
+            <div class="login-feature">
+                <div class="login-feature-icon">📅</div>
+                <div>
+                    <div class="login-feature-title">Calendario Visivo</div>
+                    <div class="login-feature-desc">Agenda settimanale con colori per medico e gestione conflitti automatica</div>
+                </div>
             </div>
-            <div class="mb-4">
-                <label class="form-label fw-semibold">Password</label>
-                <input type="password" id="pass" class="form-control" placeholder="Inserisci password" required>
+            <div class="login-feature">
+                <div class="login-feature-icon">🗂️</div>
+                <div>
+                    <div class="login-feature-title">Cartella Clinica Digitale</div>
+                    <div class="login-feature-desc">Storico visite, diagnosi e trattamenti per ogni paziente</div>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Accedi</button>
-        </form>
+            <div class="login-feature">
+                <div class="login-feature-icon">👥</div>
+                <div>
+                    <div class="login-feature-title">Gestione Completa</div>
+                    <div class="login-feature-desc">Medici, pazienti e turni con esportazione CSV in un click</div>
+                </div>
+            </div>
+            <div class="login-feature">
+                <div class="login-feature-icon">🔐</div>
+                <div>
+                    <div class="login-feature-title">Sicurezza JWT</div>
+                    <div class="login-feature-desc">Autenticazione con token cifrati e protezione completa dei dati</div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Pannello destro: form -->
+    <div class="login-right">
+        <div class="login-card">
+            <div class="login-card-inner">
+                <h2 class="login-form-title">Bentornata 👋</h2>
+                <p class="login-form-sub">Inserisci le tue credenziali per accedere</p>
+
+                <form onsubmit="faiLogin(event)">
+                    <div class="login-input-group">
+                        <label for="user">Username</label>
+                        <span class="login-input-icon">👤</span>
+                        <input type="text" id="user" class="login-input"
+                               placeholder="Il tuo username" required autofocus>
+                    </div>
+
+                    <div class="login-input-group">
+                        <label for="pass">Password</label>
+                        <span class="login-input-icon">🔒</span>
+                        <input type="password" id="pass" class="login-input"
+                               placeholder="La tua password" required>
+                    </div>
+
+                    <button type="submit" class="btn-login">Accedi al sistema →</button>
+                </form>
+
+                <p class="login-footer-text">
+                    Primo accesso? Usa <code>/docs</code> per creare un account.<br>
+                    © 2026 Gestionale Clinica Aziendale
+                </p>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- ═══════════════════════════════════ APP ═══════════════════════════════════ -->

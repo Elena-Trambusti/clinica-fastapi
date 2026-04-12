@@ -48,7 +48,7 @@ function aggiornaInterfaccia() {
         // Piccolo delay per permettere al DOM di renderizzare prima di FullCalendar
         setTimeout(initCalendario, 80);
     } else {
-        document.getElementById('sezione-login').style.display = 'flex';
+        document.getElementById('sezione-login').style.display = '';   // CSS gestisce flex
         document.getElementById('sezione-app').style.display = 'none';
     }
 }
