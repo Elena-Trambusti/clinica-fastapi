@@ -167,3 +167,39 @@ class AnamnesiResponse(BaseModel):
     note_anamnestiche: str
 
     model_config = {"from_attributes": True}
+
+
+# --- LISTA D'ATTESA ---
+
+STATI_ATTESA    = {"attesa", "contattato", "confermato", "rimosso"}
+PRIORITA_VALIDE = {1, 2, 3}
+
+
+class ListaAttesaCreate(BaseModel):
+    paziente_id: int
+    medico_id: int | None = None
+    specializzazione: str = ""
+    priorita: int = 3
+    note: str = ""
+    data_inserimento: str   # ISO datetime string
+
+
+class ListaAttesaResponse(BaseModel):
+    id: int
+    paziente_id: int
+    medico_id: int | None
+    specializzazione: str
+    priorita: int
+    note: str
+    data_inserimento: str
+    stato: str
+    nome_paziente: str = ""
+    cognome_paziente: str = ""
+    email_paziente: str = ""
+    nome_medico: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class ListaAttesaStatoUpdate(BaseModel):
+    stato: str

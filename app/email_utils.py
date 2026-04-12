@@ -130,3 +130,25 @@ def build_email_promemoria(paziente_nome: str, medico_nome: str, orario: str, st
         paziente_nome=paziente_nome,
         body_content=body,
     )
+
+
+def build_email_disponibilita(paziente_nome: str, med_nome: str) -> str:
+    body = f"""
+    <p style="color:#374151;margin-bottom:16px">
+      siamo lieti di comunicarle che si è liberato un <strong>posto disponibile</strong>
+      con <strong>{med_nome}</strong>.</p>
+    <div class="detail-row"><span class="icon">📞</span>
+      <div><div class="label">Come procedere</div>
+      <div class="value">Contatti la segreteria per confermare l'appuntamento</div></div></div>
+    <div class="detail-row"><span class="icon">⏰</span>
+      <div><div class="label">Importante</div>
+      <div class="value">Il posto è disponibile per un periodo limitato</div></div></div>
+    <p style="color:#6c757d;font-size:.85rem;margin-top:20px">
+      Se non è più interessato, può ignorare questa email. Il posto sarà assegnato
+      al prossimo paziente in lista d'attesa.</p>
+    """
+    return _BASE_TEMPLATE.format(
+        subtitle="Posto Disponibile — Lista d'Attesa",
+        paziente_nome=paziente_nome,
+        body_content=body,
+    )

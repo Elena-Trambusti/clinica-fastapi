@@ -848,6 +848,38 @@
             font-weight: 500;
         }
 
+        /* ── LISTA D'ATTESA ── */
+        .priorita-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .22rem .65rem;
+            border-radius: .45rem;
+            font-size: .73rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .priorita-1 { background: #fee2e2; color: #b91c1c; }  /* urgente */
+        .priorita-2 { background: #fef3c7; color: #92400e; }  /* alta */
+        .priorita-3 { background: #d1fae5; color: #065f46; }  /* normale */
+        .attesa-stato-attesa     { background: #dbeafe; color: #1d4ed8; }
+        .attesa-stato-contattato { background: #fef9c3; color: #a16207; }
+        .attesa-stato-confermato { background: #dcfce7; color: #166534; }
+        .attesa-stato-rimosso    { background: #f3f4f6; color: #6b7280; }
+        .attesa-pos {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #e0e7ff;
+            color: #4f46e5;
+            font-weight: 700;
+            font-size: .78rem;
+            flex-shrink: 0;
+        }
+
         /* ── ANAMNESI PAZIENTE ── */
         .anamnesi-panel {
             background: #f8f9ff;
@@ -1142,6 +1174,12 @@
                 <button class="nav-link" id="tab-pazienti" data-bs-toggle="tab"
                         data-bs-target="#pane-pazienti" type="button">
                     👤 Pazienti
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-attesa" data-bs-toggle="tab"
+                        data-bs-target="#pane-attesa" type="button">
+                    ⏳ Lista d'Attesa
                 </button>
             </li>
             <li class="nav-item admin-only">
@@ -1495,6 +1533,106 @@
                     </thead>
                     <tbody id="tabella-pazienti"></tbody>
                 </table>
+                </div>
+            </div>
+
+            <!-- ════ LISTA D'ATTESA ════ -->
+            <div class="tab-pane fade" id="pane-attesa">
+                <h5 class="fw-bold mb-3 text-primary">⏳ Lista d'Attesa Intelligente</h5>
+
+                <!-- Form aggiunta -->
+                <div class="mb-3">
+                    <button class="btn btn-warning fw-semibold" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#formNuovaAttesa">
+                        + Aggiungi Paziente in Lista
+                    </button>
+                </div>
+                <div class="collapse mb-4" id="formNuovaAttesa">
+                    <div class="form-sezione border border-warning border-opacity-50">
+                        <h6 class="fw-bold mb-3 text-warning">Nuovo Inserimento in Lista d'Attesa</h6>
+                        <form id="formAttesa" onsubmit="aggiungiInAttesa(event)">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Paziente *</label>
+                                    <select id="attesa-paziente-id" class="form-select" required>
+                                        <option value="" disabled selected>Seleziona paziente...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Medico preferito</label>
+                                    <select id="attesa-medico-id" class="form-select">
+                                        <option value="">Qualunque / non specificato</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Specializzazione richiesta</label>
+                                    <input type="text" id="attesa-specializzazione" class="form-control"
+                                           placeholder="Es. Cardiologia, Ortopedia…">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">Priorità *</label>
+                                    <select id="attesa-priorita" class="form-select" required>
+                                        <option value="1">🔴 Urgente</option>
+                                        <option value="2">🟡 Alta</option>
+                                        <option value="3" selected>🟢 Normale</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-9">
+                                    <label class="form-label small fw-semibold">Note / Motivo della richiesta</label>
+                                    <input type="text" id="attesa-note" class="form-control"
+                                           placeholder="Es. Visita di controllo post-operatoria, urgenza cardiaca...">
+                                </div>
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="submit" class="btn btn-success fw-semibold px-4">
+                                        ✅ Aggiungi in Lista
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-toggle="collapse" data-bs-target="#formNuovaAttesa">
+                                        Annulla
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Filtri -->
+                <div class="filter-bar mb-3">
+                    <select id="filtro-attesa-priorita" class="filter-select" onchange="filtraAttesa()">
+                        <option value="">Tutte le priorità</option>
+                        <option value="1">🔴 Urgente</option>
+                        <option value="2">🟡 Alta</option>
+                        <option value="3">🟢 Normale</option>
+                    </select>
+                    <select id="filtro-attesa-stato" class="filter-select" onchange="filtraAttesa()">
+                        <option value="">Tutti gli stati</option>
+                        <option value="attesa">In attesa</option>
+                        <option value="contattato">Contattato</option>
+                    </select>
+                    <input type="text" id="filtro-attesa-testo" class="filter-input"
+                           placeholder="🔍 Cerca paziente o specializzazione…" oninput="filtraAttesa()">
+                    <span id="attesa-counter" class="text-muted small align-self-center"></span>
+                </div>
+
+                <!-- Tabella -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:44px">#</th>
+                                <th>Paziente</th>
+                                <th>Medico / Specializzazione</th>
+                                <th>Priorità</th>
+                                <th>In attesa dal</th>
+                                <th>Note</th>
+                                <th>Stato</th>
+                                <th style="width:160px">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabella-attesa">
+                            <tr><td colspan="8" class="text-center text-muted py-4">Caricamento...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

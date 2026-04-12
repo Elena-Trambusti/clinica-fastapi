@@ -1789,6 +1789,237 @@ async function inviaEmailTurno(id) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  LISTA D'ATTESA INTELLIGENTE
+// ═══════════════════════════════════════════════════════
+
+let _allAttesa = [];
+
+const _prioritaLabel = { 1: '🔴 Urgente', 2: '🟡 Alta', 3: '🟢 Normale' };
+const _prioritaClass = { 1: 'priorita-1',  2: 'priorita-2',  3: 'priorita-3' };
+const _attesaStatoLabel = {
+    attesa:     'In Attesa',
+    contattato: 'Contattato',
+    confermato: 'Confermato',
+    rimosso:    'Rimosso',
+};
+const _attesaStatoClass = {
+    attesa:     'attesa-stato-attesa',
+    contattato: 'attesa-stato-contattato',
+    confermato: 'attesa-stato-confermato',
+    rimosso:    'attesa-stato-rimosso',
+};
+
+async function caricaListaAttesa() {
+    const res = await fetch('/lista-attesa', { headers: authHeaders() });
+    if (!res.ok) return;
+    _allAttesa = await res.json();
+    _popolaSelectAttesa();
+    filtraAttesa();
+}
+
+function _popolaSelectAttesa() {
+    // select pazienti nel form
+    const sel = document.getElementById('attesa-paziente-id');
+    if (!sel) return;
+    const curr = sel.value;
+    sel.innerHTML = '<option value="" disabled selected>Seleziona paziente...</option>';
+    _allPazienti.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = `${p.cognome} ${p.nome}`;
+        sel.appendChild(o);
+    });
+    if (curr) sel.value = curr;
+
+    // select medici nel form
+    const selM = document.getElementById('attesa-medico-id');
+    if (!selM) return;
+    const currM = selM.value;
+    selM.innerHTML = '<option value="">Qualunque / non specificato</option>';
+    Object.values(_medicoMap).forEach(m => {
+        const o = document.createElement('option');
+        o.value = m.id;
+        o.textContent = `${m.nome} ${m.cognome} — ${m.specializzazione}`;
+        selM.appendChild(o);
+    });
+    if (currM) selM.value = currM;
+}
+
+function filtraAttesa() {
+    const prioritaFil = document.getElementById('filtro-attesa-priorita')?.value || '';
+    const statoFil    = document.getElementById('filtro-attesa-stato')?.value    || '';
+    const testoFil    = (document.getElementById('filtro-attesa-testo')?.value || '').toLowerCase();
+
+    const lista = _allAttesa.filter(e => {
+        if (prioritaFil && String(e.priorita) !== prioritaFil) return false;
+        if (statoFil    && e.stato !== statoFil)               return false;
+        if (testoFil) {
+            const haystack = `${e.nome_paziente} ${e.cognome_paziente} ${e.specializzazione} ${e.nome_medico}`.toLowerCase();
+            if (!haystack.includes(testoFil)) return false;
+        }
+        return true;
+    });
+
+    const counter = document.getElementById('attesa-counter');
+    if (counter) counter.textContent = `${lista.length} pazient${lista.length === 1 ? 'e' : 'i'}`;
+
+    _renderTabellaAttesa(lista);
+}
+
+function _renderTabellaAttesa(lista) {
+    const tbody = document.getElementById('tabella-attesa');
+    if (!tbody) return;
+
+    if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5">
+            <div style="font-size:2rem">⏳</div>
+            <div class="mt-2">Nessun paziente in lista d'attesa.</div></td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = lista.map((e, idx) => {
+        const pClss = _prioritaClass[e.priorita] || 'priorita-3';
+        const pLbl  = _prioritaLabel[e.priorita]  || 'Normale';
+        const sClss = _attesaStatoClass[e.stato]  || '';
+        const sLbl  = _attesaStatoLabel[e.stato]  || e.stato;
+        const medico = e.nome_medico || e.specializzazione || '—';
+        const data   = e.data_inserimento ? e.data_inserimento.substring(0, 10) : '—';
+
+        const canNotify = e.stato === 'attesa' || e.stato === 'contattato';
+        const btnNotifica = canNotify
+            ? `<button class="btn btn-sm btn-outline-primary" title="Invia email paziente"
+                       onclick="notificaAttesa(${e.id})">📧</button>`
+            : '';
+        const btnConverti = `<button class="btn btn-sm btn-success" title="Converti in appuntamento"
+                                     onclick="convertiInAppuntamento(${e.paziente_id}, ${e.medico_id || 'null'})">📅</button>`;
+        const btnRimuovi = `<button class="btn btn-sm btn-outline-danger" title="Rimuovi dalla lista"
+                                    onclick="rimuoviDaAttesa(${e.id})">🗑</button>`;
+
+        return `<tr>
+            <td><span class="attesa-pos">${idx + 1}</span></td>
+            <td>
+                <div class="fw-semibold">${escapeHtml(e.cognome_paziente)} ${escapeHtml(e.nome_paziente)}</div>
+                <div class="text-muted small">${escapeHtml(e.email_paziente)}</div>
+            </td>
+            <td class="small">${escapeHtml(medico)}</td>
+            <td><span class="priorita-badge ${pClss}">${pLbl}</span></td>
+            <td class="small text-muted">${data}</td>
+            <td class="small text-muted" style="max-width:160px;white-space:normal">${escapeHtml(e.note || '—')}</td>
+            <td><span class="badge rounded-pill ${sClss} fw-semibold" style="font-size:.72rem">${sLbl}</span></td>
+            <td>
+                <div class="d-flex gap-1 flex-wrap">
+                    ${btnNotifica}${btnConverti}${btnRimuovi}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function aggiungiInAttesa(e) {
+    e.preventDefault();
+    const pazId  = document.getElementById('attesa-paziente-id').value;
+    const medId  = document.getElementById('attesa-medico-id').value || null;
+    const spec   = document.getElementById('attesa-specializzazione').value.trim();
+    const prio   = parseInt(document.getElementById('attesa-priorita').value);
+    const note   = document.getElementById('attesa-note').value.trim();
+
+    if (!pazId) { mostraNotifica('Seleziona un paziente.', false); return; }
+
+    const res = await fetch('/lista-attesa', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            paziente_id: parseInt(pazId),
+            medico_id: medId ? parseInt(medId) : null,
+            specializzazione: spec,
+            priorita: prio,
+            note,
+            data_inserimento: new Date().toISOString(),
+        }),
+    });
+
+    if (res.ok) {
+        const nuova = await res.json();
+        _allAttesa.unshift(nuova);
+        // ordina per priorità poi data
+        _allAttesa.sort((a, b) => a.priorita - b.priorita || a.data_inserimento.localeCompare(b.data_inserimento));
+        filtraAttesa();
+        document.getElementById('formAttesa').reset();
+        bootstrap.Collapse.getOrCreateInstance(document.getElementById('formNuovaAttesa'), { toggle: false }).hide();
+        mostraNotifica('Paziente aggiunto in lista d\'attesa.');
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore durante l\'aggiunta.', false);
+    }
+}
+
+async function notificaAttesa(id) {
+    const ok = confirm('Inviare una email al paziente per comunicare la disponibilità del posto?');
+    if (!ok) return;
+    const res = await fetch(`/lista-attesa/${id}/notifica`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        const idx = _allAttesa.findIndex(e => e.id === id);
+        if (idx !== -1) _allAttesa[idx].stato = 'contattato';
+        filtraAttesa();
+        mostraNotifica('Email di notifica inviata al paziente.');
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore invio email.', false);
+    }
+}
+
+async function rimuoviDaAttesa(id) {
+    if (!confirm('Rimuovere questo paziente dalla lista d\'attesa?')) return;
+    const res = await fetch(`/lista-attesa/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        _allAttesa = _allAttesa.filter(e => e.id !== id);
+        filtraAttesa();
+        mostraNotifica('Paziente rimosso dalla lista d\'attesa.');
+    } else {
+        mostraNotifica('Errore durante la rimozione.', false);
+    }
+}
+
+function convertiInAppuntamento(pazienteId, medicoId) {
+    // Porta l'utente al tab appuntamenti con il form pre-compilato
+    const tabTurni = document.getElementById('tab-turni');
+    if (tabTurni) bootstrap.Tab.getOrCreateInstance(tabTurni).show();
+
+    setTimeout(() => {
+        // Apre il form nuovo appuntamento
+        const formCollapse = document.getElementById('formNuovoTurno');
+        if (formCollapse) bootstrap.Collapse.getOrCreateInstance(formCollapse, { toggle: false }).show();
+
+        // Pre-compila paziente e medico
+        const selPaz = document.getElementById('nuovo-paziente-id');
+        if (selPaz && pazienteId) selPaz.value = pazienteId;
+
+        const selMed = document.getElementById('nuovo-medico-id');
+        if (selMed && medicoId) selMed.value = medicoId;
+
+        // Scroll al form
+        formCollapse?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        mostraNotifica('Form appuntamento pre-compilato — completa orario e stanza.');
+    }, 350);
+}
+
+// Listener tab lista d'attesa
+document.addEventListener('DOMContentLoaded', () => {
+    const tabAttesa = document.getElementById('tab-attesa');
+    if (tabAttesa) {
+        tabAttesa.addEventListener('shown.bs.tab', () => {
+            caricaListaAttesa();
+        });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 //  ANAMNESI PAZIENTE
 // ═══════════════════════════════════════════════════════
 

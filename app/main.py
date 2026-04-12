@@ -844,6 +844,134 @@ def upsert_anamnesi(
     return _anamnesi_to_response(a)
 
 
+# --- LISTA D'ATTESA ---
+
+def _attesa_to_response(e: models.ListaAttesa) -> schemas.ListaAttesaResponse:
+    paz = e.paziente
+    med = e.medico
+    return schemas.ListaAttesaResponse(
+        id=e.id,
+        paziente_id=e.paziente_id,
+        medico_id=e.medico_id,
+        specializzazione=e.specializzazione or "",
+        priorita=e.priorita,
+        note=e.note or "",
+        data_inserimento=e.data_inserimento,
+        stato=e.stato,
+        nome_paziente=paz.nome if paz else "",
+        cognome_paziente=paz.cognome if paz else "",
+        email_paziente=paz.email if paz else "",
+        nome_medico=f"{med.nome} {med.cognome}" if med else "",
+    )
+
+
+@app.get("/lista-attesa", response_model=list[schemas.ListaAttesaResponse])
+def get_lista_attesa(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    entries = (
+        db.query(models.ListaAttesa)
+        .filter(models.ListaAttesa.stato.in_(["attesa", "contattato"]))
+        .order_by(models.ListaAttesa.priorita, models.ListaAttesa.data_inserimento)
+        .all()
+    )
+    return [_attesa_to_response(e) for e in entries]
+
+
+@app.post("/lista-attesa", response_model=schemas.ListaAttesaResponse, status_code=201)
+def crea_attesa(
+    dati: schemas.ListaAttesaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    paz = db.query(models.Paziente).filter(models.Paziente.id == dati.paziente_id).first()
+    if not paz:
+        raise HTTPException(status_code=404, detail="Paziente non trovato")
+    if dati.medico_id:
+        med = db.query(models.Medico).filter(models.Medico.id == dati.medico_id).first()
+        if not med:
+            raise HTTPException(status_code=404, detail="Medico non trovato")
+    if dati.priorita not in schemas.PRIORITA_VALIDE:
+        raise HTTPException(status_code=422, detail="Priorità non valida (1=urgente, 2=alta, 3=normale)")
+
+    entry = models.ListaAttesa(
+        paziente_id=dati.paziente_id,
+        medico_id=dati.medico_id,
+        specializzazione=dati.specializzazione,
+        priorita=dati.priorita,
+        note=dati.note,
+        data_inserimento=dati.data_inserimento,
+        stato="attesa",
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return _attesa_to_response(entry)
+
+
+@app.patch("/lista-attesa/{entry_id}/stato", response_model=schemas.ListaAttesaResponse)
+def aggiorna_stato_attesa(
+    entry_id: int,
+    payload: schemas.ListaAttesaStatoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if payload.stato not in schemas.STATI_ATTESA:
+        raise HTTPException(status_code=422, detail=f"Stato non valido. Valori consentiti: {schemas.STATI_ATTESA}")
+    entry = db.query(models.ListaAttesa).filter(models.ListaAttesa.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Voce non trovata")
+    entry.stato = payload.stato
+    db.commit()
+    db.refresh(entry)
+    return _attesa_to_response(entry)
+
+
+@app.delete("/lista-attesa/{entry_id}")
+def elimina_attesa(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    entry = db.query(models.ListaAttesa).filter(models.ListaAttesa.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Voce non trovata")
+    db.delete(entry)
+    db.commit()
+    return {"message": "Rimosso dalla lista d'attesa"}
+
+
+@app.post("/lista-attesa/{entry_id}/notifica")
+def notifica_attesa(
+    entry_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    entry = db.query(models.ListaAttesa).filter(models.ListaAttesa.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Voce non trovata")
+    paz = entry.paziente
+    if not paz or not paz.email:
+        raise HTTPException(status_code=400, detail="Paziente senza email")
+
+    med_nome = f"{entry.medico.nome} {entry.medico.cognome}" if entry.medico else entry.specializzazione or "il nostro studio"
+    background_tasks.add_task(_invia_notifica_attesa_bg, entry_id=entry_id, paz_email=paz.email,
+                               paz_nome=f"{paz.nome} {paz.cognome}", med_nome=med_nome)
+
+    entry.stato = "contattato"
+    db.commit()
+    return {"message": "Notifica email inviata"}
+
+
+def _invia_notifica_attesa_bg(entry_id: int, paz_email: str, paz_nome: str, med_nome: str):
+    from .email_utils import send_email, build_email_disponibilita
+    body = build_email_disponibilita(paz_nome, med_nome)
+    ok = send_email(paz_email, "Posto Disponibile — Clinica Aziendale", body)
+    print(f"[ATTESA] Notifica a {paz_email}: {'OK' if ok else 'SKIP (email non configurata)'}")
+
+
 # --- CALENDARIO ---
 
 _COLORS = [

@@ -83,6 +83,24 @@ class Visita(Base):
     medico = relationship("Medico", back_populates="visite")
 
 
+class ListaAttesa(Base):
+    """Coda d'attesa per specialità mediche."""
+    __tablename__ = "lista_attesa"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paziente_id = Column(Integer, ForeignKey("pazienti.id"), nullable=False)
+    medico_id   = Column(Integer, ForeignKey("medici.id"), nullable=True)   # facoltativo
+    specializzazione = Column(String, default="")   # filtro alternativo al medico specifico
+    priorita    = Column(Integer, default=3)         # 1=urgente 2=alta 3=normale
+    note        = Column(Text, default="")
+    data_inserimento = Column(String, nullable=False)
+    stato       = Column(String, default="attesa", server_default="attesa")
+    # attesa | contattato | confermato | rimosso
+
+    paziente = relationship("Paziente", backref="lista_attesa")
+    medico   = relationship("Medico",   backref="lista_attesa")
+
+
 class User(Base):
     __tablename__ = "users"
 
