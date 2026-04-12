@@ -848,6 +848,26 @@
             font-weight: 500;
         }
 
+        /* ── RUOLI UTENTE ── */
+        /* Nascondi per ruolo usando data-role sul body */
+        body:not([data-role="admin"]) .admin-only { display: none !important; }
+        body[data-role="medico"] .no-medico        { display: none !important; }
+
+        .ruolo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .2rem .65rem;
+            border-radius: 999px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .ruolo-admin      { background: rgba(255,215,0,.25); color: #ffd700; border: 1px solid rgba(255,215,0,.4); }
+        .ruolo-segreteria { background: rgba(255,255,255,.15); color: #cfe2ff; border: 1px solid rgba(255,255,255,.25); }
+        .ruolo-medico     { background: rgba(100,255,180,.18); color: #6effb4; border: 1px solid rgba(100,255,180,.3); }
+
         /* ── STATO APPUNTAMENTO ── */
         .stato-select {
             display: inline-block;
@@ -996,7 +1016,11 @@
             <div id="notifiche-panel"></div>
         </div>
 
-        <button class="btn btn-outline-light btn-sm fw-semibold" onclick="logout()">Esci</button>
+        <div class="d-flex align-items-center gap-2">
+            <span id="navbar-username" class="text-white-50 small d-none d-md-inline"></span>
+            <span id="navbar-ruolo-badge" class="ruolo-badge d-none"></span>
+            <button class="btn btn-outline-light btn-sm fw-semibold" onclick="logout()">Esci</button>
+        </div>
     </nav>
 
     <div class="container-fluid px-4 pt-3">
@@ -1031,6 +1055,12 @@
                 <button class="nav-link" id="tab-pazienti" data-bs-toggle="tab"
                         data-bs-target="#pane-pazienti" type="button">
                     👤 Pazienti
+                </button>
+            </li>
+            <li class="nav-item admin-only">
+                <button class="nav-link" id="tab-utenti" data-bs-toggle="tab"
+                        data-bs-target="#pane-utenti" type="button">
+                    ⚙️ Utenti
                 </button>
             </li>
         </ul>
@@ -1163,7 +1193,7 @@
                     </div>
                 </div>
 
-                <div class="form-sezione">
+                <div class="form-sezione no-medico">
                     <h6 class="fw-semibold mb-3 text-secondary">Nuovo Appuntamento</h6>
                     <form onsubmit="aggiungiTurno(event)" id="formNuovoTurno">
                         <div class="row g-2">
@@ -1268,7 +1298,7 @@
             <div class="tab-pane fade" id="pane-medici">
                 <h5 class="fw-bold mb-3 text-primary">Gestione Medici</h5>
 
-                <div class="form-sezione">
+                <div class="form-sezione admin-only">
                     <h6 class="fw-semibold mb-3 text-secondary">Nuovo Medico</h6>
                     <form onsubmit="aggiungiMedico(event)">
                         <div class="row g-2">
@@ -1328,7 +1358,7 @@
                     </div>
                 </div>
 
-                <div class="form-sezione">
+                <div class="form-sezione no-medico">
                     <h6 class="fw-semibold mb-3 text-secondary">Nuovo Paziente</h6>
                     <form onsubmit="aggiungiPaziente(event)">
                         <div class="row g-2">
@@ -1377,6 +1407,55 @@
                         </tr>
                     </thead>
                     <tbody id="tabella-pazienti"></tbody>
+                </table>
+                </div>
+            </div>
+
+            <!-- ════ UTENTI (solo admin) ════ -->
+            <div class="tab-pane fade admin-only" id="pane-utenti">
+                <h5 class="fw-bold mb-3 text-primary">⚙️ Gestione Utenti</h5>
+
+                <div class="form-sezione mb-4">
+                    <h6 class="fw-semibold mb-3 text-secondary">Crea Nuovo Utente</h6>
+                    <form onsubmit="creaUtente(event)">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Username</label>
+                                <input type="text" id="nuovo-username" class="form-control" placeholder="es. mario.rossi" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Password</label>
+                                <input type="password" id="nuovo-password" class="form-control" placeholder="Password sicura" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Ruolo</label>
+                                <select id="nuovo-ruolo" class="form-select" required>
+                                    <option value="segreteria">Segreteria</option>
+                                    <option value="medico">Medico</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary fw-semibold px-4">
+                                    Crea Utente
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <h6 class="fw-semibold mb-2 text-secondary">Utenti Registrati</h6>
+                <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:50px">#</th>
+                            <th>Username</th>
+                            <th>Ruolo</th>
+                            <th style="width:100px">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabella-utenti"></tbody>
                 </table>
                 </div>
             </div>

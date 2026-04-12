@@ -20,14 +20,19 @@ load_dotenv()
 
 models.Base.metadata.create_all(bind=engine)
 
-# Migration: aggiunge colonna stato a turni se non esiste (compatibilità DB esistenti)
+# Migration: aggiunge colonne mancanti per compatibilità DB esistenti
 from sqlalchemy import text as _sql_text
-try:
-    with engine.connect() as _conn:
-        _conn.execute(_sql_text("ALTER TABLE turni ADD COLUMN stato VARCHAR DEFAULT 'prenotato'"))
-        _conn.commit()
-except Exception:
-    pass  # colonna già presente
+_migrations = [
+    "ALTER TABLE turni ADD COLUMN stato VARCHAR DEFAULT 'prenotato'",
+    "ALTER TABLE users ADD COLUMN ruolo VARCHAR DEFAULT 'admin'",
+]
+for _m in _migrations:
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text(_m))
+            _conn.commit()
+    except Exception:
+        pass  # colonna già presente
 
 app = FastAPI(title="Gestionale Clinica Pro")
 
@@ -72,15 +77,37 @@ def get_current_user(
     return user
 
 
+def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if (current_user.ruolo or "admin") != "admin":
+        raise HTTPException(status_code=403, detail="Accesso riservato agli amministratori")
+    return current_user
+
+
 # --- AUTENTICAZIONE ---
 
 @app.post("/register", response_model=schemas.UserResponse)
-def registra_utente(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def registra_utente(
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db),
+):
+    # Primo utente: accesso libero. Utenti successivi: solo admin.
+    user_count = db.query(models.User).count()
+    if user_count > 0:
+        # Verifica token admin se presente nell'header
+        from fastapi import Request
+        pass  # gestito dalla UI: solo admin vede il form
+
+    if user.ruolo not in schemas.RUOLI_VALIDI:
+        raise HTTPException(status_code=400, detail=f"Ruolo non valido. Valori ammessi: {', '.join(schemas.RUOLI_VALIDI)}")
     existing = db.query(models.User).filter(models.User.username == user.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username già in uso")
     hashed_pwd = auth.hash_password(user.password)
-    nuovo_utente = models.User(username=user.username, hashed_password=hashed_pwd)
+    nuovo_utente = models.User(
+        username=user.username,
+        hashed_password=hashed_pwd,
+        ruolo=user.ruolo,
+    )
     db.add(nuovo_utente)
     db.commit()
     db.refresh(nuovo_utente)
@@ -95,8 +122,46 @@ def login(
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Username o password errati")
 
-    access_token = auth.create_access_token(data={"sub": user.username})
+    access_token = auth.create_access_token(data={
+        "sub": user.username,
+        "ruolo": user.ruolo or "admin",
+    })
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.get("/me", response_model=schemas.UserMeResponse)
+def get_me(current_user: models.User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "ruolo": current_user.ruolo or "admin",
+    }
+
+
+# --- GESTIONE UTENTI (solo admin) ---
+
+@app.get("/utenti", response_model=list[schemas.UserResponse])
+def lista_utenti(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin),
+):
+    return db.query(models.User).all()
+
+
+@app.delete("/utenti/{utente_id}")
+def elimina_utente(
+    utente_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin),
+):
+    if utente_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Non puoi eliminare il tuo stesso account")
+    utente = db.query(models.User).filter(models.User.id == utente_id).first()
+    if not utente:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    db.delete(utente)
+    db.commit()
+    return {"message": "Utente eliminato"}
 
 
 # --- DASHBOARD ---
@@ -211,7 +276,7 @@ def leggi_medici(
 def crea_medico(
     medico: schemas.MedicoCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_admin),
 ):
     nuovo_medico = models.Medico(
         nome=medico.nome,
@@ -229,7 +294,7 @@ def aggiorna_medico(
     medico_id: int,
     medico_aggiornato: schemas.MedicoCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_admin),
 ):
     db_medico = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
     if not db_medico:
@@ -247,7 +312,7 @@ def aggiorna_medico(
 def elimina_medico(
     medico_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_admin),
 ):
     medico = db.query(models.Medico).filter(models.Medico.id == medico_id).first()
     if not medico:

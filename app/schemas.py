@@ -40,18 +40,28 @@ class TurnoStatoUpdate(BaseModel):
     stato: str
 
 
+RUOLI_VALIDI = {"admin", "medico", "segreteria"}
+
 # --- AUTENTICAZIONE ---
 
 class UserCreate(BaseModel):
     username: str
     password: str
+    ruolo: str = "admin"
 
 
 class UserResponse(BaseModel):
     id: int
     username: str
+    ruolo: str = "admin"
 
     model_config = {"from_attributes": True}
+
+
+class UserMeResponse(BaseModel):
+    id: int
+    username: str
+    ruolo: str
 
 
 class Token(BaseModel):

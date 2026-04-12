@@ -268,8 +268,48 @@ let _pazienteCartellaInfo = {};  // dati paziente aperto nella cartella clinica
 // Istanze Chart.js (distrutte e ricreate ad ogni refresh dashboard)
 let _charts = {};
 
+// Ruolo e nome utente corrente
+let _userRole = 'admin';
+let _userName = '';
+
+// Etichette e icone per i ruoli
+const _ruoloLabel = { admin: '👑 Admin', medico: '🩺 Medico', segreteria: '📋 Segreteria' };
+const _ruoloClass = { admin: 'ruolo-admin', medico: 'ruolo-medico', segreteria: 'ruolo-segreteria' };
+
+async function _caricaMe() {
+    try {
+        const res = await fetch('/me', { headers: authHeaders() });
+        if (!res.ok) return;
+        const me = await res.json();
+        _userRole = me.ruolo || 'admin';
+        _userName = me.username || '';
+        _applyRoleUI();
+    } catch {
+        // ignora
+    }
+}
+
+function _applyRoleUI() {
+    // Imposta data-role sul body per il CSS (mostra/nasconde .admin-only e .no-medico)
+    document.body.dataset.role = _userRole;
+
+    // Badge ruolo nella navbar
+    const badge = document.getElementById('navbar-ruolo-badge');
+    if (badge) {
+        badge.textContent = _ruoloLabel[_userRole] || _userRole;
+        badge.className = `ruolo-badge ${_ruoloClass[_userRole] || ''}`;
+        badge.classList.remove('d-none');
+    }
+    // Nome utente nella navbar
+    const usernameEl = document.getElementById('navbar-username');
+    if (usernameEl) {
+        usernameEl.textContent = _userName;
+        usernameEl.classList.remove('d-none');
+    }
+}
+
 async function caricaTutto() {
-    await Promise.all([caricaDati(), caricaPazienti(), caricaDashboard()]);
+    await Promise.all([_caricaMe(), caricaDati(), caricaPazienti(), caricaDashboard()]);
 }
 
 async function caricaDati() {
@@ -292,12 +332,14 @@ async function caricaDati() {
     medici.forEach(m => {
         _medicoMap[m.id] = { nome: `${m.nome} ${m.cognome}`, spec: m.specializzazione };
 
+        const isAdmin = _userRole === 'admin';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="text-muted small">${escapeHtml(m.id)}</td>
             <td class="fw-semibold">${escapeHtml(m.nome)} ${escapeHtml(m.cognome)}</td>
             <td><span class="badge bg-info text-dark">${escapeHtml(m.specializzazione)}</span></td>
             <td>
+                ${isAdmin ? `
                 <button class="btn btn-outline-warning btn-sm me-1"
                     onclick="preparaModificaMedico(${m.id},'${escapeHtml(m.nome)}','${escapeHtml(m.cognome)}','${escapeHtml(m.specializzazione || '')}')">
                     Modifica
@@ -305,7 +347,7 @@ async function caricaDati() {
                 <button class="btn btn-outline-danger btn-sm"
                     onclick="eliminaRecord('medici', ${m.id})">
                     Elimina
-                </button>
+                </button>` : '<span class="text-muted small">Sola lettura</span>'}
             </td>`;
         tbodyM.appendChild(tr);
 
@@ -365,6 +407,7 @@ function _renderTabellaTurni(lista) {
         const nomeMedico = _medicoMap[t.medico_id]?.nome ?? `ID ${t.medico_id}`;
         const nomePaz    = _pazienteMap[t.paziente_id]?.nome ?? `ID ${t.paziente_id}`;
         const tr = document.createElement('tr');
+        const canDeleteTurno = _userRole !== 'medico';
         tr.innerHTML = `
             <td>${escapeHtml(formatOrario(t.orario))}</td>
             <td>${escapeHtml(t.stanza)}</td>
@@ -372,10 +415,8 @@ function _renderTabellaTurni(lista) {
             <td>${escapeHtml(nomePaz)}</td>
             <td>${_buildStatoSelect(t.id, t.stato)}</td>
             <td>
-                <button class="btn btn-outline-danger btn-sm"
-                    onclick="eliminaTurno(${t.id})">
-                    Elimina
-                </button>
+                ${canDeleteTurno ? `<button class="btn btn-outline-danger btn-sm"
+                    onclick="eliminaTurno(${t.id})">Elimina</button>` : '—'}
             </td>`;
         tbody.appendChild(tr);
     });
@@ -430,6 +471,7 @@ async function caricaPazienti() {
     pazienti.forEach(p => {
         _pazienteMap[p.id] = { nome: `${p.nome} ${p.cognome}` };
 
+        const canEditPazienti = _userRole !== 'medico';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="fw-semibold">${escapeHtml(p.nome)}</td>
@@ -441,6 +483,7 @@ async function caricaPazienti() {
                     onclick="apriCartellaClinica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono || '')}')">
                     Cartella
                 </button>
+                ${canEditPazienti ? `
                 <button class="btn btn-outline-warning btn-sm me-1"
                     onclick="preparaModifica(${p.id},'${escapeHtml(p.nome)}','${escapeHtml(p.cognome)}','${escapeHtml(p.codice_fiscale)}','${escapeHtml(p.email)}','${escapeHtml(p.telefono || '')}')">
                     Modifica
@@ -448,7 +491,7 @@ async function caricaPazienti() {
                 <button class="btn btn-outline-danger btn-sm"
                     onclick="eliminaRecord('pazienti', ${p.id})">
                     Elimina
-                </button>
+                </button>` : ''}
             </td>`;
         tbody.appendChild(tr);
 
@@ -1594,6 +1637,77 @@ async function eliminaVisita(id) {
         mostraNotifica(err.detail || 'Errore.', false);
     }
 }
+
+// ═══════════════════════════════════════════════════════
+//  GESTIONE UTENTI (solo admin)
+// ═══════════════════════════════════════════════════════
+
+async function caricaUtenti() {
+    const res = await fetch('/utenti', { headers: authHeaders() });
+    if (!res.ok) return;
+    const utenti = await res.json();
+    const tbody = document.getElementById('tabella-utenti');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    utenti.forEach(u => {
+        const isMe = u.username === _userName;
+        const ruoloClass = _ruoloClass[u.ruolo] || '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-muted small">${escapeHtml(u.id)}</td>
+            <td class="fw-semibold">${escapeHtml(u.username)} ${isMe ? '<span class="badge bg-secondary ms-1">tu</span>' : ''}</td>
+            <td><span class="ruolo-badge ${ruoloClass}" style="font-size:.68rem">${escapeHtml(_ruoloLabel[u.ruolo] || u.ruolo)}</span></td>
+            <td>
+                ${!isMe ? `<button class="btn btn-outline-danger btn-sm" onclick="eliminaUtente(${u.id})">Elimina</button>` : '—'}
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function creaUtente(e) {
+    e.preventDefault();
+    const dati = {
+        username: document.getElementById('nuovo-username').value.trim(),
+        password: document.getElementById('nuovo-password').value,
+        ruolo:    document.getElementById('nuovo-ruolo').value,
+    };
+    const res = await fetch('/register', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(dati),
+    });
+    if (res.ok) {
+        mostraNotifica(`Utente "${dati.username}" creato con ruolo ${_ruoloLabel[dati.ruolo] || dati.ruolo}`);
+        e.target.reset();
+        caricaUtenti();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore nella creazione utente.', false);
+    }
+}
+
+async function eliminaUtente(id) {
+    if (!confirm('Vuoi davvero eliminare questo utente?')) return;
+    const res = await fetch(`/utenti/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+    if (res.ok) {
+        mostraNotifica('Utente eliminato.');
+        caricaUtenti();
+    } else {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(err.detail || 'Errore.', false);
+    }
+}
+
+// Carica utenti quando si apre il tab Utenti
+document.addEventListener('DOMContentLoaded', () => {
+    const tabUtenti = document.getElementById('tab-utenti');
+    if (tabUtenti) {
+        tabUtenti.addEventListener('shown.bs.tab', caricaUtenti);
+    }
+});
 
 // ═══════════════════════════════════════════════════════
 //  AVVIO
