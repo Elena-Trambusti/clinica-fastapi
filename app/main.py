@@ -263,6 +263,21 @@ def invia_promemoria_domani_manuale(
 
 # --- DASHBOARD ---
 
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    """Parsa stringhe ISO da turni/visite (con o senza timezone)."""
+    if not value:
+        return None
+    try:
+        s = value.replace("Z", "").split("+")[0].strip()
+        if len(s) >= 19:
+            return datetime.fromisoformat(s[:19])
+        if len(s) == 10:
+            return datetime.fromisoformat(f"{s}T00:00:00")
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return None
+
+
 @app.get("/dashboard")
 def get_dashboard(
     db: Session = Depends(get_db),
@@ -355,6 +370,97 @@ def get_dashboard(
         "medico_piu_attivo": medico_piu_attivo,
         "turni_questo_mese": turni_questo_mese,
     }
+
+
+@app.get("/report/mensile", response_model=schemas.ReportMensileResponse)
+def report_mensile(
+    anno: int,
+    mese: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Indicatori clinico-organizzativi per un mese (appuntamenti, no-show, picchi orari, pazienti)."""
+    if mese < 1 or mese > 12:
+        raise HTTPException(status_code=422, detail="Il mese deve essere tra 1 e 12")
+    if anno < 2000 or anno > 2100:
+        raise HTTPException(status_code=422, detail="Anno non valido")
+
+    pref = f"{anno}-{mese:02d}"
+    all_turni = db.query(models.Turno).all()
+    turni_mese = [t for t in all_turni if (t.orario or "").startswith(pref)]
+
+    stato_counts = Counter((t.stato or "prenotato") for t in turni_mese)
+    ordine_stati = (
+        "prenotato", "confermato", "arrivato", "con_medico", "completato", "no_show",
+    )
+    conteggi_stato = {s: stato_counts.get(s, 0) for s in ordine_stati}
+
+    tot = len(turni_mese)
+    ns = conteggi_stato.get("no_show", 0)
+    comp = conteggi_stato.get("completato", 0)
+    tasso_ns = round(100.0 * ns / tot, 1) if tot else 0.0
+    tasso_comp = round(100.0 * comp / tot, 1) if tot else 0.0
+
+    ore_c: Counter = Counter()
+    for t in turni_mese:
+        dt = _parse_iso_datetime(t.orario)
+        if dt:
+            ore_c[dt.hour] += 1
+    ore_picco = [schemas.ReportOraPicco(ora=h, count=c) for h, c in sorted(ore_c.items())]
+
+    pids = {t.paziente_id for t in turni_mese}
+    nuovi = 0
+    ricorrenti = 0
+    for pid in pids:
+        dates: list[datetime] = []
+        for t in all_turni:
+            if t.paziente_id != pid:
+                continue
+            dt = _parse_iso_datetime(t.orario)
+            if dt:
+                dates.append(dt)
+        if not dates:
+            continue
+        first = min(dates)
+        if first.year == anno and first.month == mese:
+            nuovi += 1
+        else:
+            ricorrenti += 1
+
+    visite_nel_mese = 0
+    for v in db.query(models.Visita).all():
+        dv = _parse_iso_datetime(v.data_visita)
+        if dv and dv.year == anno and dv.month == mese:
+            visite_nel_mese += 1
+
+    med_co = Counter(t.medico_id for t in turni_mese if t.medico_id)
+    turni_per_medico: list[schemas.ReportMedicoMese] = []
+    for mid, cnt in med_co.most_common():
+        m = db.query(models.Medico).filter(models.Medico.id == mid).first()
+        nome = f"Dott. {m.nome} {m.cognome}" if m else f"ID {mid}"
+        turni_per_medico.append(schemas.ReportMedicoMese(medico_id=mid, nome=nome, count=cnt))
+
+    mesi_it = (
+        "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+        "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+    )
+    etichetta = f"{mesi_it[mese - 1]} {anno}"
+
+    return schemas.ReportMensileResponse(
+        anno=anno,
+        mese=mese,
+        etichetta_mese=etichetta,
+        turni_totali=tot,
+        conteggi_stato=conteggi_stato,
+        tasso_no_show_pct=tasso_ns,
+        tasso_completamento_pct=tasso_comp,
+        pazienti_distinti=len(pids),
+        pazienti_nuovi=nuovi,
+        pazienti_ricorrenti=ricorrenti,
+        visite_nel_mese=visite_nel_mese,
+        ore_picco=ore_picco,
+        turni_per_medico=turni_per_medico,
+    )
 
 
 # --- MEDICI ---

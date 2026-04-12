@@ -269,3 +269,32 @@ class ListaAttesaResponse(BaseModel):
 
 class ListaAttesaStatoUpdate(BaseModel):
     stato: str
+
+
+# --- REPORT MENSILE ---
+
+class ReportOraPicco(BaseModel):
+    ora: int
+    count: int
+
+
+class ReportMedicoMese(BaseModel):
+    medico_id: int
+    nome: str
+    count: int
+
+
+class ReportMensileResponse(BaseModel):
+    anno: int
+    mese: int
+    etichetta_mese: str
+    turni_totali: int
+    conteggi_stato: dict[str, int]
+    tasso_no_show_pct: float
+    tasso_completamento_pct: float
+    pazienti_distinti: int
+    pazienti_nuovi: int
+    pazienti_ricorrenti: int
+    visite_nel_mese: int
+    ore_picco: list[ReportOraPicco]
+    turni_per_medico: list[ReportMedicoMese]

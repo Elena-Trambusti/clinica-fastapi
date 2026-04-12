@@ -540,7 +540,200 @@ async function caricaPazienti() {
     if (cntP) cntP.textContent = `${pazienti.length} pazienti`;
 }
 
+let _ultimoReportMensile = null;
+
+function _initReportMensileSelectors() {
+    const ySel = document.getElementById('report-anno');
+    const mSel = document.getElementById('report-mese');
+    if (!ySel || !mSel || ySel.dataset.inited === '1') return;
+    ySel.dataset.inited = '1';
+    const cy = new Date().getFullYear();
+    [-1, 0, 1, 2].forEach((off) => {
+        const yy = cy + off;
+        const o = document.createElement('option');
+        o.value = String(yy);
+        o.textContent = String(yy);
+        ySel.appendChild(o);
+    });
+    ySel.value = String(cy);
+    const mesiNomi = [
+        'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+        'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+    ];
+    mesiNomi.forEach((nome, i) => {
+        const o = document.createElement('option');
+        o.value = String(i + 1);
+        o.textContent = nome;
+        mSel.appendChild(o);
+    });
+    mSel.value = String(new Date().getMonth() + 1);
+}
+
+async function caricaReportMensile() {
+    _initReportMensileSelectors();
+    const anno = parseInt(document.getElementById('report-anno').value, 10);
+    const mese = parseInt(document.getElementById('report-mese').value, 10);
+    const res = await fetch(`/report/mensile?anno=${anno}&mese=${mese}`, { headers: authHeaders() });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        mostraNotifica(formatApiError(err), false);
+        return;
+    }
+    const r = await res.json();
+    _ultimoReportMensile = r;
+    document.getElementById('report-mensile-placeholder').classList.add('d-none');
+    document.getElementById('report-mensile-content').classList.remove('d-none');
+    document.getElementById('report-mensile-titolo').textContent = r.etichetta_mese;
+
+    document.getElementById('report-kpi-turni').textContent = r.turni_totali;
+    document.getElementById('report-kpi-noshow').textContent = `${r.tasso_no_show_pct}%`;
+    document.getElementById('report-kpi-comp').textContent = `${r.tasso_completamento_pct}%`;
+    document.getElementById('report-kpi-paz').textContent = r.pazienti_distinti;
+    document.getElementById('report-kpi-nuovi').textContent = r.pazienti_nuovi;
+    document.getElementById('report-kpi-ric').textContent = r.pazienti_ricorrenti;
+    document.getElementById('report-kpi-visite').textContent = r.visite_nel_mese;
+
+    const tbS = document.getElementById('report-tbody-stati');
+    const statoEtichette = {
+        prenotato: 'Prenotato',
+        confermato: 'Confermato',
+        arrivato: 'In sala',
+        con_medico: 'Con medico',
+        completato: 'Completato',
+        no_show: 'No-show',
+    };
+    tbS.innerHTML = Object.entries(r.conteggi_stato || {}).map(([k, v]) =>
+        `<tr><td>${escapeHtml(statoEtichette[k] || k)}</td><td class="text-end fw-semibold">${v}</td></tr>`).join('');
+
+    const tbM = document.getElementById('report-tbody-medici');
+    if ((r.turni_per_medico || []).length === 0) {
+        tbM.innerHTML = '<tr><td colspan="2" class="text-muted fst-italic small">Nessun appuntamento nel mese</td></tr>';
+    } else {
+        tbM.innerHTML = r.turni_per_medico.map((row) =>
+            `<tr><td>${escapeHtml(row.nome)}</td><td class="text-end">${row.count}</td></tr>`).join('');
+    }
+
+    _initReportOreChart(r);
+}
+
+function _initReportOreChart(r) {
+    _destroyChart('reportOre');
+    const ctx = document.getElementById('chart-report-ore');
+    if (!ctx) return;
+    const labels = [];
+    const data = [];
+    for (let h = 7; h <= 20; h++) {
+        labels.push(`${String(h).padStart(2, '0')}:00`);
+        const row = (r.ore_picco || []).find((x) => x.ora === h);
+        data.push(row ? row.count : 0);
+    }
+    _charts.reportOre = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Appuntamenti',
+                data,
+                backgroundColor: 'rgba(220,53,69,.65)',
+                borderColor: '#dc3545',
+                borderWidth: 1,
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
+                x: { ticks: { maxRotation: 45, font: { size: 9 } }, grid: { display: false } },
+            },
+        },
+    });
+}
+
+function esportaReportMensilePDF() {
+    if (!window.jspdf || !_ultimoReportMensile) {
+        mostraNotifica(!_ultimoReportMensile ? 'Aggiorna prima il report con «Aggiorna report».' : 'Libreria PDF non caricata.', false);
+        return;
+    }
+    const r = _ultimoReportMensile;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    doc.setFillColor(111, 66, 193);
+    doc.rect(0, 0, 210, 24, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('Report clinico mensile', 10, 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(r.etichetta_mese, 10, 20);
+    doc.text(new Date().toLocaleString('it-IT'), 200, 20, { align: 'right' });
+
+    let y = 30;
+    doc.setTextColor(0);
+    doc.setFontSize(10);
+    doc.text(`Appuntamenti nel mese: ${r.turni_totali}`, 10, y); y += 6;
+    doc.text(`Tasso no-show: ${r.tasso_no_show_pct}%  —  Completati: ${r.tasso_completamento_pct}%`, 10, y); y += 6;
+    doc.text(`Pazienti unici: ${r.pazienti_distinti} (nuovi: ${r.pazienti_nuovi}, ricorrenti: ${r.pazienti_ricorrenti})`, 10, y); y += 6;
+    doc.text(`Visite registrate nel mese: ${r.visite_nel_mese}`, 10, y); y += 10;
+
+    const statoPdf = {
+        prenotato: 'Prenotato',
+        confermato: 'Confermato',
+        arrivato: 'In sala',
+        con_medico: 'Con medico',
+        completato: 'Completato',
+        no_show: 'No-show',
+    };
+    const statiRows = Object.entries(r.conteggi_stato || {}).map(([k, v]) => [statoPdf[k] || k, String(v)]);
+    doc.autoTable({
+        startY: y,
+        head: [['Stato', 'Numero']],
+        body: statiRows,
+        theme: 'striped',
+        headStyles: { fillColor: [111, 66, 193] },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    const oreBody = [];
+    for (let h = 7; h <= 20; h++) {
+        const row = (r.ore_picco || []).find((x) => x.ora === h);
+        oreBody.push([`${String(h).padStart(2, '0')}:00`, String(row ? row.count : 0)]);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Distribuzione per ora', 10, y);
+    y += 5;
+    doc.autoTable({
+        startY: y,
+        head: [['Ora', 'Appuntamenti']],
+        body: oreBody,
+        theme: 'grid',
+        headStyles: { fillColor: [108, 117, 125] },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Carico per medico', 10, y);
+    y += 5;
+    const medBody = (r.turni_per_medico || []).map((m) => [m.nome, String(m.count)]);
+    if (!medBody.length) medBody.push(['—', '0']);
+    doc.autoTable({
+        startY: y,
+        head: [['Medico', 'Appuntamenti']],
+        body: medBody,
+        theme: 'striped',
+        headStyles: { fillColor: [25, 135, 84] },
+    });
+
+    doc.save(`report_mensile_${r.anno}_${String(r.mese).padStart(2, '0')}.pdf`);
+    mostraNotifica('PDF report scaricato.');
+}
+
 async function caricaDashboard() {
+    _initReportMensileSelectors();
     const res = await fetch('/dashboard', { headers: authHeaders() });
     if (!res.ok) return;
     const d = await res.json();

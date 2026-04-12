@@ -1366,6 +1366,102 @@
                     </div>
                 </div>
 
+                <!-- Report clinico mensile -->
+                <div class="row g-3 mt-1">
+                    <div class="col-12">
+                        <div class="chart-card border border-primary border-opacity-25">
+                            <div class="chart-title">📊 Report clinico mensile</div>
+                            <p class="text-muted small mb-3">
+                                No-show, completamenti, pazienti nuovi vs ricorrenti, picchi orari e carico per medico — mese selezionabile.
+                            </p>
+                            <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">Anno</label>
+                                    <select id="report-anno" class="form-select form-select-sm" style="width:110px"></select>
+                                </div>
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">Mese</label>
+                                    <select id="report-mese" class="form-select form-select-sm" style="width:160px"></select>
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm fw-semibold" onclick="caricaReportMensile()">
+                                    Aggiorna report
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm fw-semibold" onclick="esportaReportMensilePDF()">
+                                    📄 Scarica PDF
+                                </button>
+                            </div>
+                            <div id="report-mensile-placeholder" class="text-muted small fst-italic py-2">
+                                Scegli anno e mese, poi clicca «Aggiorna report».
+                            </div>
+                            <div id="report-mensile-content" class="d-none">
+                                <div class="fw-bold text-primary mb-2" id="report-mensile-titolo"></div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">Appuntamenti</div>
+                                            <div class="fs-4 fw-bold" id="report-kpi-turni">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">No-show %</div>
+                                            <div class="fs-4 fw-bold text-danger" id="report-kpi-noshow">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">Completati %</div>
+                                            <div class="fs-4 fw-bold text-success" id="report-kpi-comp">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">Pazienti (unici)</div>
+                                            <div class="fs-4 fw-bold" id="report-kpi-paz">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">Nuovi / Ricorrenti</div>
+                                            <div class="fs-5 fw-bold"><span id="report-kpi-nuovi">0</span> / <span id="report-kpi-ric">0</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded-3 p-2 text-center bg-light">
+                                            <div class="small text-muted">Visite registrate</div>
+                                            <div class="fs-4 fw-bold" id="report-kpi-visite">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-7">
+                                        <div class="small fw-semibold text-secondary mb-1">Distribuzione appuntamenti per ora del giorno</div>
+                                        <div class="chart-wrapper" style="height:240px">
+                                            <canvas id="chart-report-ore"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-5">
+                                        <div class="small fw-semibold text-secondary mb-1">Appuntamenti per stato</div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered mb-0 bg-white">
+                                                <thead class="table-light"><tr><th>Stato</th><th class="text-end">N.</th></tr></thead>
+                                                <tbody id="report-tbody-stati"></tbody>
+                                            </table>
+                                        </div>
+                                        <div class="small fw-semibold text-secondary mt-3 mb-1">Carico per medico</div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered mb-0 bg-white">
+                                                <thead class="table-light"><tr><th>Medico</th><th class="text-end">Appuntamenti</th></tr></thead>
+                                                <tbody id="report-tbody-medici"></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div><!-- /pane-dashboard -->
 
             <!-- ════ CALENDARIO ════ -->
